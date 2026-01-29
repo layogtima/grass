@@ -26,23 +26,18 @@ export function createMoon(scene, planetRadius) {
     
     model.traverse((child) => {
       if (child.isMesh) {
-         // FORCE NEW MATERIAL
-         // Discard oldMap because it might be black/broken.
-         const oldNormal = child.material.normalMap;
-         
-         const newMat = new THREE.MeshStandardMaterial({
-            map: null, // Discard texture for safety
-            normalMap: oldNormal, // Keep bumps if they exist
-            color: 0xeeeeff, // Pale moon white
-            roughness: 0.9,
-            emissive: new THREE.Color(0x5555ff), // Blueish glow
-            emissiveIntensity: 0.2, // Base shimmer
-            toneMapped: true
+         // VISIBILITY FIX: Use Basic Material (Unlit)
+         // This ensures the moon is always visible regardless of lighting conditions.
+         // We will apply the procedural texture in index.js
+         const newMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            map: null // Will be set by index.js procedural gen
          });
          
          child.material = newMat;
-         child.castShadow = true;
-         child.receiveShadow = true;
+         // It still casts shadows for Eclipse!
+         child.castShadow = true; 
+         child.receiveShadow = false;
       }
     });
 
