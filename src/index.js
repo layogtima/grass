@@ -705,6 +705,7 @@ const moonMesh = createMoon(scene, PLANET_RADIUS);
 // MOONFALL STATE
 // MOONFALL STATE
 let isMoonfallActive = false;
+let hasAutoTriggeredMoonfall = false;
 let moonfallStartTime = 0;
 const MOONFALL_DURATION = 50000; // 50 seconds
 let initialMoonPos = new THREE.Vector3();
@@ -947,7 +948,13 @@ const animate = function () {
       verticalVelocity = 0;
       canJump = true;
     }
-
+    
+    // Auto-Trigger Moonfall at 10s
+    if (!hasAutoTriggeredMoonfall && !isMoonfallActive && elapsedTime > 10000) {
+        console.log("🌑 Auto-triggering Moonfall at 10s!");
+        hasAutoTriggeredMoonfall = true;
+        startMoonfall();
+    }
     // [Fix] Smoothly interpolate up vector to prevent jitter
     const targetUp = camera.position.clone().normalize();
     playerUp.lerp(targetUp, 0.1).normalize();
