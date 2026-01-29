@@ -15,38 +15,48 @@ void main() {
   float normalizedElevation = elevation / 3.0; // Normalize to roughly -1 to 1 range
   
   // Biome colors based on elevation
-  vec3 valleyColor = vec3(0.2, 0.5, 0.15);      // Deep green valleys
-  vec3 lowlandColor = vec3(0.3, 0.6, 0.2);      // Lush green lowlands
-  vec3 hillColor = vec3(0.4, 0.55, 0.25);       // Yellow-green hills
-  vec3 mountainColor = vec3(0.35, 0.45, 0.3);   // Darker mountain green
-  vec3 peakColor = vec3(0.5, 0.55, 0.5);        // Rocky gray-green
-  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // Snow white
+  vec3 sandColor = vec3(0.93, 0.87, 0.69);      // #eddba6 (Sand)
+  vec3 grassColor = vec3(0.32, 0.48, 0.18);     // #517a2e (Grass)
+  vec3 rockColor = vec3(0.45, 0.42, 0.40);      // #736b66 (Rock)
+  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // #f2f7ff (Snow)
   
   vec3 color;
   
-  if (normalizedElevation < -0.3) {
-    // Deep valleys - rich green
-    color = valleyColor;
-  } else if (normalizedElevation < 0.0) {
-    // Lowlands - blend valley to lowland
-    float t = (normalizedElevation + 0.3) / 0.3;
-    color = mix(valleyColor, lowlandColor, t);
-  } else if (normalizedElevation < 0.3) {
-    // Hills - blend lowland to hill
-    float t = normalizedElevation / 0.3;
-    color = mix(lowlandColor, hillColor, t);
-  } else if (normalizedElevation < 0.6) {
-    // Mountains - blend hill to mountain
-    float t = (normalizedElevation - 0.3) / 0.3;
-    color = mix(hillColor, mountainColor, t);
-  } else if (normalizedElevation < 0.85) {
-    // High peaks - blend mountain to rocky
-    float t = (normalizedElevation - 0.6) / 0.25;
-    color = mix(mountainColor, peakColor, t);
+  // Normalized elevation is roughly -1.0 to 1.0
+  // Adjust bands for interesting distribution
+  
+  float sandThresh = -0.2;
+  float grassThresh = 0.5;
+  float rockThresh = 0.8;
+
+  // Add some noise to transitions (using simple coordinate based dithering for now)
+  float noise = sin(vWorldPosition.x * 0.5) * sin(vWorldPosition.y * 0.5) * sin(vWorldPosition.z * 0.5) * 0.05;
+  float h = normalizedElevation + noise;
+
+  if (h < sandThresh) {
+    // Sand / Beach
+    color = sandColor;
+  } else if (h < sandThresh + 0.1) {
+    // Sand -> Grass Mix
+    float t = (h - sandThresh) / 0.1;
+    color = mix(sandColor, grassColor, t);
+  } else if (h < grassThresh) {
+    // Grassland
+    color = grassColor;
+  } else if (h < grassThresh + 0.2) {
+    // Grass -> Rock Mix
+    float t = (h - grassThresh) / 0.2;
+    color = mix(grassColor, rockColor, t);
+  } else if (h < rockThresh) {
+    // Rock / Mountain
+    color = rockColor;
+  } else if (h < rockThresh + 0.15) {
+    // Rock -> Snow Mix
+    float t = (h - rockThresh) / 0.15;
+    color = mix(rockColor, snowColor, t);
   } else {
-    // Snow caps!
-    float t = clamp((normalizedElevation - 0.85) / 0.15, 0.0, 1.0);
-    color = mix(peakColor, snowColor, t);
+    // Snow Caps
+    color = snowColor;
   }
   
   // Simple diffuse lighting

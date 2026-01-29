@@ -47924,7 +47924,7 @@
 
 	var vert$1 = "varying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nuniform float iTime;\nuniform float planetRadius;\n\nvoid main() {\n  vUv = uv;\n  vNormal = normalize(normalMatrix * normal);\n  \n  // Get world position for cloud shadow calculation\n  vec4 worldPos = modelMatrix * vec4(position, 1.0);\n  vWorldPosition = worldPos.xyz;\n  \n  // Cloud shadow UV based on spherical position\n  // Map world position to UV using spherical coordinates\n  vec3 normPos = normalize(worldPos.xyz);\n  float theta = atan(normPos.z, normPos.x);\n  float phi = acos(normPos.y);\n  \n  cloudUV = vec2(theta / 6.28318 + 0.5, phi / 3.14159);\n  cloudUV.x += iTime / 20000.0;\n  cloudUV.y += iTime / 40000.0;\n\n  vec4 mvPosition = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n  gl_Position = mvPosition;\n}\n";
 
-	var frag$1 = "uniform sampler2D cloudTexture;\nuniform vec3 groundColor;\nuniform float iTime;\nuniform float planetRadius;\n\nvarying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  // Calculate height above base planet surface\n  float distFromCenter = length(vWorldPosition);\n  float elevation = distFromCenter - planetRadius;\n  float normalizedElevation = elevation / 3.0; // Normalize to roughly -1 to 1 range\n  \n  // Biome colors based on elevation\n  vec3 valleyColor = vec3(0.2, 0.5, 0.15);      // Deep green valleys\n  vec3 lowlandColor = vec3(0.3, 0.6, 0.2);      // Lush green lowlands\n  vec3 hillColor = vec3(0.4, 0.55, 0.25);       // Yellow-green hills\n  vec3 mountainColor = vec3(0.35, 0.45, 0.3);   // Darker mountain green\n  vec3 peakColor = vec3(0.5, 0.55, 0.5);        // Rocky gray-green\n  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // Snow white\n  \n  vec3 color;\n  \n  if (normalizedElevation < -0.3) {\n    // Deep valleys - rich green\n    color = valleyColor;\n  } else if (normalizedElevation < 0.0) {\n    // Lowlands - blend valley to lowland\n    float t = (normalizedElevation + 0.3) / 0.3;\n    color = mix(valleyColor, lowlandColor, t);\n  } else if (normalizedElevation < 0.3) {\n    // Hills - blend lowland to hill\n    float t = normalizedElevation / 0.3;\n    color = mix(lowlandColor, hillColor, t);\n  } else if (normalizedElevation < 0.6) {\n    // Mountains - blend hill to mountain\n    float t = (normalizedElevation - 0.3) / 0.3;\n    color = mix(hillColor, mountainColor, t);\n  } else if (normalizedElevation < 0.85) {\n    // High peaks - blend mountain to rocky\n    float t = (normalizedElevation - 0.6) / 0.25;\n    color = mix(mountainColor, peakColor, t);\n  } else {\n    // Snow caps!\n    float t = clamp((normalizedElevation - 0.85) / 0.15, 0.0, 1.0);\n    color = mix(peakColor, snowColor, t);\n  }\n  \n  // Simple diffuse lighting\n  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  color *= 0.6 + diffuse * 0.5;\n  \n  // Mix in cloud shadows (subtle)\n  vec3 cloudShadow = texture2D(cloudTexture, cloudUV).rgb;\n  color = mix(color, color * cloudShadow, 0.25);\n  \n  gl_FragColor.rgb = color;\n  gl_FragColor.a = 1.0;\n}\n";
+	var frag$1 = "uniform sampler2D cloudTexture;\nuniform vec3 groundColor;\nuniform float iTime;\nuniform float planetRadius;\n\nvarying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  // Calculate height above base planet surface\n  float distFromCenter = length(vWorldPosition);\n  float elevation = distFromCenter - planetRadius;\n  float normalizedElevation = elevation / 3.0; // Normalize to roughly -1 to 1 range\n  \n  // Biome colors based on elevation\n  vec3 sandColor = vec3(0.93, 0.87, 0.69);      // #eddba6 (Sand)\n  vec3 grassColor = vec3(0.32, 0.48, 0.18);     // #517a2e (Grass)\n  vec3 rockColor = vec3(0.45, 0.42, 0.40);      // #736b66 (Rock)\n  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // #f2f7ff (Snow)\n  \n  vec3 color;\n  \n  // Normalized elevation is roughly -1.0 to 1.0\n  // Adjust bands for interesting distribution\n  \n  float sandThresh = -0.2;\n  float grassThresh = 0.5;\n  float rockThresh = 0.8;\n\n  // Add some noise to transitions (using simple coordinate based dithering for now)\n  float noise = sin(vWorldPosition.x * 0.5) * sin(vWorldPosition.y * 0.5) * sin(vWorldPosition.z * 0.5) * 0.05;\n  float h = normalizedElevation + noise;\n\n  if (h < sandThresh) {\n    // Sand / Beach\n    color = sandColor;\n  } else if (h < sandThresh + 0.1) {\n    // Sand -> Grass Mix\n    float t = (h - sandThresh) / 0.1;\n    color = mix(sandColor, grassColor, t);\n  } else if (h < grassThresh) {\n    // Grassland\n    color = grassColor;\n  } else if (h < grassThresh + 0.2) {\n    // Grass -> Rock Mix\n    float t = (h - grassThresh) / 0.2;\n    color = mix(grassColor, rockColor, t);\n  } else if (h < rockThresh) {\n    // Rock / Mountain\n    color = rockColor;\n  } else if (h < rockThresh + 0.15) {\n    // Rock -> Snow Mix\n    float t = (h - rockThresh) / 0.15;\n    color = mix(rockColor, snowColor, t);\n  } else {\n    // Snow Caps\n    color = snowColor;\n  }\n  \n  // Simple diffuse lighting\n  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  color *= 0.6 + diffuse * 0.5;\n  \n  // Mix in cloud shadows (subtle)\n  vec3 cloudShadow = texture2D(cloudTexture, cloudUV).rgb;\n  color = mix(color, color * cloudShadow, 0.25);\n  \n  gl_FragColor.rgb = color;\n  gl_FragColor.a = 1.0;\n}\n";
 
 	var groundShader = { frag: frag$1, vert: vert$1 };
 
@@ -47934,6 +47934,104 @@
 
 	var cloudShader = { frag, vert };
 
+	class BirdSwarm {
+	  constructor(scene, count = 50) {
+	    this.scene = scene;
+	    this.count = count;
+	    
+	    // Simple bird geometry (Pyramid)
+	    const geometry = new ConeBufferGeometry(0.1, 0.4, 3);
+	    geometry.rotateX(Math.PI / 2); // Point forward
+	    
+	    const material = new MeshBasicMaterial({ color: 0xffffff });
+	    
+	    this.mesh = new InstancedMesh(geometry, material, count);
+	    this.scene.add(this.mesh);
+	    
+	    this.birds = [];
+	    const dummy = new Object3D();
+	    
+	    // Initialize birds
+	    for (let i = 0; i < count; i++) {
+	      // Random position around planet (radius ~25-40)
+	      const r = 25 + Math.random() * 15;
+	      const theta = Math.random() * Math.PI * 2;
+	      const phi = Math.random() * Math.PI;
+	      
+	      this.birds.push({
+	        position: new Vector3(
+	          r * Math.sin(phi) * Math.cos(theta),
+	          r * Math.cos(phi),
+	          r * Math.sin(phi) * Math.sin(theta)
+	        ),
+	        velocity: new Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize().multiplyScalar(0.1),
+	        phase: Math.random() * 6.28
+	      });
+	      
+	      dummy.position.copy(this.birds[i].position);
+	      dummy.lookAt(0, 0, 0); // Temporary look
+	      dummy.updateMatrix();
+	      this.mesh.setMatrixAt(i, dummy.matrix);
+	    }
+	  }
+	  
+	  update(delta) {
+	    const dummy = new Object3D();
+	    new Vector3(0, 0, 0);
+	    
+	    for (let i = 0; i < this.count; i++) {
+	      const bird = this.birds[i];
+	      
+	      // Move bird
+	      bird.position.add(bird.velocity);
+	      
+	      // Simple orbital gravity / centering force
+	      const dist = bird.position.length();
+	      if (dist > 50) {
+	        bird.velocity.add(bird.position.clone().negate().normalize().multiplyScalar(0.001));
+	      } else if (dist < 20) {
+	        bird.velocity.add(bird.position.clone().normalize().multiplyScalar(0.001));
+	      }
+	      
+	      // Noise/Wander
+	      bird.velocity.x += (Math.random() - 0.5) * 0.005;
+	      bird.velocity.y += (Math.random() - 0.5) * 0.005;
+	      bird.velocity.z += (Math.random() - 0.5) * 0.005;
+	      bird.velocity.normalize().multiplyScalar(10 * delta); // Speed
+	      
+	      // Update Instance
+	      dummy.position.copy(bird.position);
+	      
+	      // Orient bird to face velocity, but keep "up" relative to planet somewhat?
+	      // Actually just lookAt target + velocity is fine for simple birds
+	      const target = bird.position.clone().add(bird.velocity);
+	      dummy.lookAt(target);
+	      
+	      dummy.updateMatrix();
+	      this.mesh.setMatrixAt(i, dummy.matrix);
+	    }
+	    
+	    this.mesh.instanceMatrix.needsUpdate = true;
+	  }
+	}
+
+	function createMoon(scene, planetRadius) {
+	  const moonRadius = 4;
+	  const orbitDistance = planetRadius + 80;
+	  
+	  const geometry = new SphereBufferGeometry(moonRadius, 32, 32);
+	  const material = new MeshLambertMaterial({ color: 0xdddddd });
+	  
+	  const moon = new Mesh(geometry, material);
+	  
+	  // Position
+	  moon.position.set(orbitDistance, orbitDistance * 0.5, -orbitDistance * 0.5);
+	  
+	  scene.add(moon);
+	  
+	  return moon;
+	}
+
 	// =============================================================================
 	// 🌍 LITTLE PRINCE MODE - Spherical Planet!
 	// =============================================================================
@@ -47942,7 +48040,6 @@
 	const terrainPerlin = new ImprovedNoise();
 	const TERRAIN_NOISE_SCALE = 0.2; // Reduced for smoother terrain
 	const TERRAIN_HEIGHT_SCALE = 1.2; // Reduced for gentler hills
-	const GRASS_HEIGHT_THRESHOLD = 1.0; // Adjusted for lower terrain
 	const GRASS_CANYON_THRESHOLD = -0.6; // Adjusted for lower terrain
 
 	// Planet Parameters
@@ -48540,6 +48637,13 @@
 	}
 
 	// =============================================================================
+	// New Features: Birds & Moon
+	// =============================================================================
+
+	const birdSwarm = new BirdSwarm(scene, 100); // 100 birds
+	createMoon(scene, PLANET_RADIUS);
+
+	// =============================================================================
 	// Terrain Sculpting
 	// =============================================================================
 
@@ -48619,7 +48723,7 @@
 	document.body.appendChild(brushUI);
 
 	function updateBrushUI() {
-	  brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower</span>`;
+	  brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower · MMB: Flatten</span>`;
 	}
 
 	// updateBrushUI();
@@ -48657,6 +48761,9 @@
 	    isMouseDown = true;
 	  } else if (event.button === 2) {
 	    sculptMode = -1;
+	    isMouseDown = true;
+	  } else if (event.button === 1) { // Middle click for flatten
+	    sculptMode = 2; // Flatten
 	    isMouseDown = true;
 	  }
 	});
@@ -48743,8 +48850,9 @@
 	      canJump = true;
 	    }
 
-	    // Recalculate up vector based on NEW position to prevent jitter
-	    playerUp.copy(camera.position).normalize();
+	    // [Fix] Smoothly interpolate up vector to prevent jitter
+	    const targetUp = camera.position.clone().normalize();
+	    playerUp.lerp(targetUp, 0.1).normalize();
 	    
 	    // Update camera orientation
 	    // Camera looks along the surface with vertical tilt
@@ -48802,6 +48910,9 @@
 	    cloud.lookAt(0, 0, 0);
 	    cloud.rotateX(Math.PI);
 	  });
+	  
+	  // Animate Birds
+	  birdSwarm.update(delta);
 
 	  // Sculpt terrain while mouse is held
 	  if (isMouseDown && sculptMode !== 0) {
@@ -48926,8 +49037,17 @@
 	        
 	        // Displace radially
 	        const currentRadius = vertexPos.length();
-	        const displacement = direction * SCULPT_STRENGTH * smoothFalloff;
-	        const newRadius = Math.max(PLANET_RADIUS * 0.7, Math.min(PLANET_RADIUS * 1.5, currentRadius + displacement));
+	        
+	        let newRadius;
+	        if (direction === 2) { // Flatten Mode
+	             // Flatten to player's feet level (approx)
+	             // or just smooth average? Let's flatten to fixed radius for now or average
+	             // Simple flatten: Lerp towards PLANET_RADIUS
+	             newRadius = MathUtils.lerp(currentRadius, PLANET_RADIUS + 0.5, 0.05); // Gently flatten to "sea level + 0.5"
+	        } else {
+	             const displacement = direction * SCULPT_STRENGTH * smoothFalloff;
+	             newRadius = Math.max(PLANET_RADIUS * 0.7, Math.min(PLANET_RADIUS * 1.5, currentRadius + displacement));
+	        }
 	        
 	        const scale = newRadius / currentRadius;
 	        positions[i] *= scale;
@@ -49016,11 +49136,14 @@
 	    
 	    const displacement = surfaceRadius - PLANET_RADIUS;
 	    
-	    // Skip grass on peaks
-	    if (displacement > GRASS_HEIGHT_THRESHOLD) continue;
-	    // Skip grass in valleys
-	    if (displacement < GRASS_CANYON_THRESHOLD) continue;
-	    
+	    // [Biome Logic] Only place grass in the "Midlands" (Green Zone)
+	    // Lowlands = Sand (< -0.2), Midlands = Grass (-0.2 to 0.5), Highlands = Rock (> 0.5)
+	    if (displacement < -0.2 * 3.0) continue; // Too low (Sand)
+	    if (displacement > 0.5 * 3.0) continue;  // Too high (Rock/Snow)
+
+	    // Skip steep slopes (optional, but good for realism)
+	    // We'd need normal capability here, skipping for now to keep it simple
+
 	    // Random thinning
 	    if (Math.random() > 0.7) continue;
 	    

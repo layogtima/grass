@@ -3,6 +3,8 @@ import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import grassShader from './shaders/grass.js';
 import groundShader from './shaders/ground.js';
 import cloudShader from './shaders/cloud.js';
+import { BirdSwarm } from './Birds.js';
+import { createMoon } from './Moon.js';
 
 // =============================================================================
 // 🌍 LITTLE PRINCE MODE - Spherical Planet!
@@ -610,6 +612,13 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
 }
 
 // =============================================================================
+// New Features: Birds & Moon
+// =============================================================================
+
+const birdSwarm = new BirdSwarm(scene, 100); // 100 birds
+const moonMesh = createMoon(scene, PLANET_RADIUS);
+
+// =============================================================================
 // Terrain Sculpting
 // =============================================================================
 
@@ -689,7 +698,7 @@ brushUI.style.display = 'none';
 document.body.appendChild(brushUI);
 
 function updateBrushUI() {
-  brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower</span>`;
+  brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower · MMB: Flatten</span>`;
 }
 
 // updateBrushUI();
@@ -727,6 +736,9 @@ document.addEventListener('mousedown', (event) => {
     isMouseDown = true;
   } else if (event.button === 2) {
     sculptMode = -1;
+    isMouseDown = true;
+  } else if (event.button === 1) { // Middle click for flatten
+    sculptMode = 2; // Flatten
     isMouseDown = true;
   }
 });
@@ -813,8 +825,9 @@ const animate = function () {
       canJump = true;
     }
 
-    // Recalculate up vector based on NEW position to prevent jitter
-    playerUp.copy(camera.position).normalize();
+    // [Fix] Smoothly interpolate up vector to prevent jitter
+    const targetUp = camera.position.clone().normalize();
+    playerUp.lerp(targetUp, 0.1).normalize();
     
     // Update camera orientation
     // Camera looks along the surface with vertical tilt
@@ -872,6 +885,9 @@ const animate = function () {
     cloud.lookAt(0, 0, 0);
     cloud.rotateX(Math.PI);
   });
+  
+  // Animate Birds
+  birdSwarm.update(delta);
 
   // Sculpt terrain while mouse is held
   if (isMouseDown && sculptMode !== 0) {
@@ -996,8 +1012,17 @@ function sculptTerrain(direction) {
         
         // Displace radially
         const currentRadius = vertexPos.length();
-        const displacement = direction * SCULPT_STRENGTH * smoothFalloff;
-        const newRadius = Math.max(PLANET_RADIUS * 0.7, Math.min(PLANET_RADIUS * 1.5, currentRadius + displacement));
+        
+        let newRadius;
+        if (direction === 2) { // Flatten Mode
+             // Flatten to player's feet level (approx)
+             // or just smooth average? Let's flatten to fixed radius for now or average
+             // Simple flatten: Lerp towards PLANET_RADIUS
+             newRadius = THREE.MathUtils.lerp(currentRadius, PLANET_RADIUS + 0.5, 0.05); // Gently flatten to "sea level + 0.5"
+        } else {
+             const displacement = direction * SCULPT_STRENGTH * smoothFalloff;
+             newRadius = Math.max(PLANET_RADIUS * 0.7, Math.min(PLANET_RADIUS * 1.5, currentRadius + displacement));
+        }
         
         const scale = newRadius / currentRadius;
         positions[i] *= scale;
@@ -1086,11 +1111,14 @@ function generateSphericalGrass(useSaved = false) {
     
     const displacement = surfaceRadius - PLANET_RADIUS;
     
-    // Skip grass on peaks
-    if (displacement > GRASS_HEIGHT_THRESHOLD) continue;
-    // Skip grass in valleys
-    if (displacement < GRASS_CANYON_THRESHOLD) continue;
-    
+    // [Biome Logic] Only place grass in the "Midlands" (Green Zone)
+    // Lowlands = Sand (< -0.2), Midlands = Grass (-0.2 to 0.5), Highlands = Rock (> 0.5)
+    if (displacement < -0.2 * 3.0) continue; // Too low (Sand)
+    if (displacement > 0.5 * 3.0) continue;  // Too high (Rock/Snow)
+
+    // Skip steep slopes (optional, but good for realism)
+    // We'd need normal capability here, skipping for now to keep it simple
+
     // Random thinning
     if (Math.random() > 0.7) continue;
     
