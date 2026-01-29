@@ -11,5 +11,6 @@ Lush, grassy planet with dynamic clouds.
 ## Controls
 - **WASD / Arrow Keys**: Move camera
 - **Mouse**: Look around
-- **Click**: Dig usage (coming soon!)
-- **G**: Regrow grass
+- **Left Click**: Raise
+- **Right Click**: Lower
+- **Scroll**: Brush Size

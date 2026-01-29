@@ -561,25 +561,43 @@ const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
 scene.add(atmosphereMesh);
 
 // =============================================================================
+// Water Sphere (Hacky Ocean) 🌊
+// =============================================================================
+// Placed slightly below base radius to fill deep valleys (-0.2 cutoff generally)
+const waterGeometry = new THREE.SphereBufferGeometry(PLANET_RADIUS - 0.5, 64, 64);
+const waterMaterial = new THREE.MeshPhongMaterial({
+  color: 0x1e6091, // Deep Blue
+  shininess: 90,
+  opacity: 0.7,
+  transparent: true,
+  side: THREE.DoubleSide
+});
+const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+scene.add(waterMesh);
+
+// =============================================================================
 // Orbital Clouds - textured clouds drifting around the planet
 // =============================================================================
 
 const cloudMeshes = [];
 const CLOUD_ORBIT_RADIUS = PLANET_RADIUS + 5; // Much higher above terrain!
-const CLOUD_COUNT = 8;
+const CLOUD_COUNT = 80; // Way more clouds!
 
 for (let i = 0; i < CLOUD_COUNT; i++) {
   // Random position on sphere
-  const theta = (i / CLOUD_COUNT) * Math.PI * 2 + Math.random() * 0.5;
-  const phi = 0.4 + Math.random() * 2.2; // Avoid poles
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1); // Uniform sphere dist
   
   // Create cloud plane with cloud texture shader
-  const cloudSize = 6 + Math.random() * 4;
+  // Varied sizes: Some huge atmosphere patches, some small puffs
+  const isBig = Math.random() > 0.8;
+  const cloudSize = isBig ? (15 + Math.random() * 10) : (6 + Math.random() * 4);
+  
   const cloudGeom = new THREE.PlaneBufferGeometry(cloudSize, cloudSize);
   const cloudMat = new THREE.ShaderMaterial({
     uniforms: {
       cloudTexture: { value: cloudTexture },
-      opacity: { value: 0.6 + Math.random() * 0.2 }
+      opacity: { value: isBig ? 0.3 : 0.6 + Math.random() * 0.2 } // Big ones are fainter
     },
     vertexShader: cloudShader.vert,
     fragmentShader: cloudShader.frag,

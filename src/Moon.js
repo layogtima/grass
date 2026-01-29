@@ -5,7 +5,8 @@ export function createMoon(scene, planetRadius) {
   const orbitDistance = planetRadius + 80;
   
   const geometry = new THREE.SphereBufferGeometry(moonRadius, 32, 32);
-  const material = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+  // MeshBasicMaterial is unlit, so it always looks "full" and bright
+  const material = new THREE.MeshBasicMaterial({ color: 0xffffee });
   
   const moon = new THREE.Mesh(geometry, material);
   
