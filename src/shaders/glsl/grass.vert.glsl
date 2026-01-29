@@ -6,6 +6,8 @@ varying vec3 vSurfaceNormal;
 
 uniform float iTime;
 uniform vec3 planetCenter;
+uniform vec3 moonPosition; // For magnetic pull
+uniform float moonInteraction; // 0 to 1 strength
 
 void main() {
   vUv = uv;
@@ -24,10 +26,28 @@ void main() {
   // Create a tangent for wind direction
   vec3 windDir = normalize(cross(vSurfaceNormal, vec3(0.0, 1.0, 0.1)));
   
+  // Dynamic Wind Speed (increases with moonInteraction)
+  float windSpeedBase = 800.0;
+  float windSpeed = windSpeedBase / (1.0 + moonInteraction * 3.0); // Faster when moon is close
+  
+  // Standard Wind
+  float windOffset = sin((iTime / windSpeed) + (uv.x * waveSize));
+  
+  // MOON PULL EFFECT 🌑
+  // Grass tips get pulled towards the moon
+  vec3 dirToMoon = normalize(moonPosition - worldPos.xyz);
+  // Only affect tips (color.x > 0.6)
+  
   if (color.x > 0.6) {
-    cpos += windDir * sin((iTime / 800.0) + (uv.x * waveSize)) * tipDistance;
+    // Wind
+    cpos += windDir * windOffset * tipDistance * (1.0 + moonInteraction * 2.0); // Wilder wind
+    
+    // Moon Pull (Stretching towards moon)
+    cpos += dirToMoon * moonInteraction * 2.0; // Grow 2.0 units towards moon!
+    
   } else if (color.x > 0.0) {
-    cpos += windDir * sin((iTime / 800.0) + (uv.x * waveSize)) * centerDistance;
+    // Lower grass wind
+    cpos += windDir * windOffset * centerDistance * (1.0 + moonInteraction);
   }
 
   // Cloud UV from spherical coordinates

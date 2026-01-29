@@ -90,7 +90,8 @@ function getSphericalTerrainHeight(theta, phi) {
 }
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+// Camera Config - Increase Far Clip for Distant Moon!
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000); 
 
 // Parameters
 const BLADE_COUNT = 80000;
@@ -100,6 +101,8 @@ const BLADE_HEIGHT_VARIATION = 0.3;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true; // Enable Shadows!
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // =============================================================================
@@ -119,11 +122,13 @@ let moveLeft = false;
 let moveRight = false;
 let canJump = false;
 let verticalVelocity = 0;
+
 const PLAYER_HEIGHT = 1.0;
 const MOVE_SPEED = 5.0;
 const JUMP_VELOCITY = 8.0;
-const GRAVITY = 2.5;
+let GRAVITY = 2.5; // Changed to let for Moonfall
 const MOUSE_SENSITIVITY = 0.002;
+
 
 let isPointerLocked = false;
 
@@ -202,6 +207,9 @@ const onKeyDown = function (event) {
     // case 'KeyG':
     //   regenerateGrassAsync();
     //   break;
+    case 'KeyM': // Trigger Moonfall
+      if (!isMoonfallActive) startMoonfall();
+      break;
   }
 };
 
@@ -436,7 +444,9 @@ const groundUniforms = {
   groundColor: { value: new THREE.Color(0x8B6914) },
   iTime: timeUniform,
   planetCenter: { value: new THREE.Vector3(0, 0, 0) },
-  planetRadius: { value: PLANET_RADIUS }
+  planetRadius: { value: PLANET_RADIUS },
+  moonPosition: { value: new THREE.Vector3(0, 100, 0) },
+  moonInteraction: { value: 0.0 } // 0 = normal, 1 = full chaos
 };
 
 const groundMaterial = new THREE.ShaderMaterial({
@@ -452,6 +462,15 @@ scene.add(ambientLight);
 
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(-50, 100, 50);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048; // High res shadows
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 500;
+dirLight.shadow.camera.left = -100;
+dirLight.shadow.camera.right = 100;
+dirLight.shadow.camera.top = 100;
+dirLight.shadow.camera.bottom = -100;
 scene.add(dirLight);
 
 // Dynamic atmosphere - will update based on altitude
@@ -575,6 +594,11 @@ const waterMaterial = new THREE.MeshPhongMaterial({
 const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
 scene.add(waterMesh);
 
+// Add Moon Light (Dramatic side lighting)
+const moonLight = new THREE.DirectionalLight(0xffffff, 0.0); // Starts off, ramps up?
+moonLight.position.set(100, 50, 50); // Fixed side angle
+scene.add(moonLight);
+
 // =============================================================================
 // Orbital Clouds - textured clouds drifting around the planet
 // =============================================================================
@@ -594,6 +618,11 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
   const cloudSize = isBig ? (15 + Math.random() * 10) : (6 + Math.random() * 4);
   
   const cloudGeom = new THREE.PlaneBufferGeometry(cloudSize, cloudSize);
+  
+  // Store original scale
+  const originalScale = isBig ? (15 + Math.random() * 10) : (6 + Math.random() * 4);
+  cloudGeom.scale(1, 1, 1); // Reset geom scale, use object scale
+
   const cloudMat = new THREE.ShaderMaterial({
     uniforms: {
       cloudTexture: { value: cloudTexture },
@@ -622,8 +651,12 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
     theta: theta,
     phi: phi,
     speed: 0.01 + Math.random() * 0.02, // Slow orbital speed
-    verticalDrift: (Math.random() - 0.5) * 0.005
+    verticalDrift: (Math.random() - 0.5) * 0.005,
+    originalScale: 1.0 // We use object scale now
   };
+  
+  // Set initial scale
+  cloud.scale.setScalar(1.0);
   
   scene.add(cloud);
   cloudMeshes.push(cloud);
@@ -635,6 +668,27 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
 
 const birdSwarm = new BirdSwarm(scene, 100); // 100 birds
 const moonMesh = createMoon(scene, PLANET_RADIUS);
+
+// MOONFALL STATE
+let isMoonfallActive = false;
+let moonfallStartTime = 0;
+const MOONFALL_DURATION = 50000; // 50 seconds
+let initialMoonPos = new THREE.Vector3();
+const moonTargetPos = new THREE.Vector3(PLANET_RADIUS + 500, 0, 0); // Stops 10x further away!
+const MOON_RADIUS_PHYSICS = 75; 
+
+// PHYSICS STATE
+let isOnMoon = false;
+
+function startMoonfall() {
+  console.log("🌑 MOONFALL INITIATED");
+  if (!moonMesh) { console.error("Moon not loaded!"); return; }
+  
+  isMoonfallActive = true;
+  moonfallStartTime = Date.now();
+  // Ensure we copy the CURRENT position (which should be far out)
+  initialMoonPos.copy(moonMesh.position);
+}
 
 // =============================================================================
 // Terrain Sculpting
@@ -867,7 +921,74 @@ const animate = function () {
     const atmosphereT = Math.max(0, Math.min(1, (altitude - ATMOSPHERE_START) / (ATMOSPHERE_END - ATMOSPHERE_START)));
     
     // Blend background from sky to space
-    scene.background.copy(SKY_COLOR).lerp(SPACE_COLOR, atmosphereT);
+    if (isMoonfallActive) {
+      const elapsed = Date.now() - moonfallStartTime;
+      const progress = Math.min(1, elapsed / MOONFALL_DURATION);
+      
+      // TERROREASING: Exponential curve
+      // Starts slow... then RUSHES in.
+      const ease = progress * progress * progress * progress; // Quartic ease-in 
+      
+      try {
+        // Update Moon Position
+        if (moonMesh && initialMoonPos.length() > 0) {
+           moonMesh.position.lerpVectors(initialMoonPos, moonTargetPos, ease);
+           
+           // Rotate Moon - Subtle menace
+           // Stop rotation at end
+           if (progress < 0.9) {
+              moonMesh.rotation.y += delta * 0.2; 
+           } else {
+              // Smoothly slow to a complete halt
+              const stopFactor = Math.max(0, 1.0 - (progress - 0.9) * 10.0);
+              moonMesh.rotation.y += delta * 0.2 * stopFactor;
+           }
+           
+           // Update Uniforms
+           grassUniforms.moonPosition.value.copy(moonMesh.position);
+           grassUniforms.moonInteraction.value = ease * 2.0; // Boost interaction!
+           
+           // Enable Shadows on Moon mesh if not already
+           if (!moonMesh.userData.shadowsEnabled) {
+              moonMesh.traverse(child => {
+                 if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                 }
+              });
+              moonMesh.userData.shadowsEnabled = true;
+           }
+        }
+        // Sky turning black/red
+        const dreadColor = new THREE.Color(0x0a0000); // Deep blood black
+        const startSky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
+        scene.background.copy(startSky).lerp(dreadColor, Math.min(1, progress * 1.5));
+        
+        // Gravity changing (Low gravity chaos)
+        GRAVITY = THREE.MathUtils.lerp(2.5, 0.2, ease); // Even lower gravity!
+        
+        // 🎵 Audio Shift - Safer implementation
+        if (audioInitialized) {
+          // Fade out meadow safely
+          const meadowVol = Math.max(0, 1.0 - progress * 4.0);
+          if (audioSources.meadow.gainNode) {
+             audioSources.meadow.gainNode.gain.cancelScheduledValues(0);
+             audioSources.meadow.gainNode.gain.value = meadowVol;
+          }
+          
+          // Boost space (rumble)
+          const rumbleVol = Math.min(1.0, progress * 3.0);
+           if (audioSources.space.gainNode) {
+             audioSources.space.gainNode.gain.value = rumbleVol;
+          }
+        }
+      } catch (e) {
+        console.error("Moonfall Error:", e);
+      }
+      
+    } else {
+      scene.background.copy(SKY_COLOR).lerp(SPACE_COLOR, atmosphereT);
+    }
     
     // Fade in stars as we go higher (use uniform for shader)
     starsMaterial.uniforms.opacity.value = atmosphereT;
@@ -902,6 +1023,22 @@ const animate = function () {
     cloud.position.set(x, y, z);
     cloud.lookAt(0, 0, 0);
     cloud.rotateX(Math.PI);
+    
+    // Moon Interaction: Clouds grow HUGE near the moon
+    if (moonMesh) {
+       const distToMoon = cloud.position.distanceTo(moonMesh.position);
+       // If close (within 800 units), scale up
+       if (distToMoon < 800) {
+          const proximity = 1.0 - (distToMoon / 800.0);
+          const targetScale = 1.0 + proximity * 5.0; // Grow up to 6x!
+          cloud.scale.setScalar(targetScale);
+          cloud.userData.isNearMoon = true;
+       } else if (cloud.userData.isNearMoon) {
+          // Shrink back
+          cloud.scale.lerp(new THREE.Vector3(1,1,1), 0.05);
+          if (Math.abs(cloud.scale.x - 1) < 0.1) cloud.userData.isNearMoon = false;
+       }
+    }
   });
   
   // Animate Birds
@@ -910,6 +1047,11 @@ const animate = function () {
   // Sculpt terrain while mouse is held
   if (isMouseDown && sculptMode !== 0) {
     sculptTerrain(sculptMode);
+  }
+  
+  // Rotate Moon
+  if (moonMesh) {
+    moonMesh.rotation.y += delta * 0.05; // Base rotation
   }
   
   // 🎵 Update sculpting audio
@@ -975,7 +1117,13 @@ function generatePlanet() {
   geometry.computeVertexNormals();
   
   groundMesh = new THREE.Mesh(geometry, groundMaterial);
+  groundMesh.receiveShadow = true; // Shadows on planet!
+  groundMesh.castShadow = true; // Self shadowing if needed
   scene.add(groundMesh);
+  
+  // Re-add brush cursor
+  scene.remove(brushCursor);
+  scene.add(brushCursor);
 }
 
 function getTerrainHeightAtPosition(pos) {
