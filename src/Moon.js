@@ -26,8 +26,23 @@ export function createMoon(scene, planetRadius) {
     
     model.traverse((child) => {
       if (child.isMesh) {
-         // child.material.emissive = new THREE.Color(0x222222); // Slight glow?
-         // child.material.envMapIntensity = 1.0;
+         // FORCE NEW MATERIAL
+         // Discard oldMap because it might be black/broken.
+         const oldNormal = child.material.normalMap;
+         
+         const newMat = new THREE.MeshStandardMaterial({
+            map: null, // Discard texture for safety
+            normalMap: oldNormal, // Keep bumps if they exist
+            color: 0xeeeeff, // Pale moon white
+            roughness: 0.9,
+            emissive: new THREE.Color(0x5555ff), // Blueish glow
+            emissiveIntensity: 0.2, // Base shimmer
+            toneMapped: true
+         });
+         
+         child.material = newMat;
+         child.castShadow = true;
+         child.receiveShadow = true;
       }
     });
 

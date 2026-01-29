@@ -2,6 +2,9 @@ uniform sampler2D cloudTexture;
 uniform vec3 groundColor;
 uniform float iTime;
 uniform float planetRadius;
+uniform float globalLightIntensity; // To control brightness during Moonfall
+uniform vec3 moonPosition;
+uniform float dayFactor;
 
 varying vec2 vUv;
 varying vec2 cloudUV;
@@ -67,6 +70,23 @@ void main() {
   // Mix in cloud shadows (subtle)
   vec3 cloudShadow = texture2D(cloudTexture, cloudUV).rgb;
   color = mix(color, color * cloudShadow, 0.25);
+  
+  // Apply Global Light Intensity (Moonfall Darkness) + Moon Lighting
+  // LIGHTING LOGIC (Unified with Grass)
+  
+  vec3 moonDir = normalize(moonPosition - vWorldPosition);
+  float ndotl = max(0.0, dot(vNormal, moonDir));
+  
+  vec3 ambient = vec3(0.05, 0.05, 0.1);
+  vec3 moonColor = vec3(0.6, 0.7, 1.0) * 1.5;
+  
+  float moonMix = (1.0 - dayFactor); // 1 at night
+  vec3 nightLight = ambient + (moonColor * ndotl);
+  
+  // Combine: Sun (globalLightIntensity) + Moon
+  vec3 finalLight = vec3(globalLightIntensity) + (nightLight * moonMix);
+
+  color *= finalLight;
   
   gl_FragColor.rgb = color;
   gl_FragColor.a = 1.0;

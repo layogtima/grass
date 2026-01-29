@@ -3,6 +3,7 @@ varying vec2 cloudUV;
 varying vec3 vColor;
 varying float vWorldY;
 varying vec3 vSurfaceNormal;
+varying vec3 vWorldPosition;
 
 uniform float iTime;
 uniform vec3 planetCenter;
@@ -16,6 +17,7 @@ void main() {
 
   // Calculate surface normal (direction from planet center)
   vec4 worldPos = modelMatrix * vec4(position, 1.0);
+  vWorldPosition = worldPos.xyz;
   vSurfaceNormal = normalize(worldPos.xyz - planetCenter);
   
   // REDUCED wind animation - much more subtle now!

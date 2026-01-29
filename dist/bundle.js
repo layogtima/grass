@@ -47918,21 +47918,21 @@
 
 	};
 
-	var vert$2 = "varying vec2 vUv;\r\nvarying vec2 cloudUV;\r\nvarying vec3 vColor;\r\nvarying float vWorldY;\r\nvarying vec3 vSurfaceNormal;\r\n\r\nuniform float iTime;\r\nuniform vec3 planetCenter;\r\nuniform vec3 moonPosition; // For magnetic pull\r\nuniform float moonInteraction; // 0 to 1 strength\r\n\r\nvoid main() {\r\n  vUv = uv;\r\n  vColor = color;\r\n  vec3 cpos = position;\r\n\r\n  // Calculate surface normal (direction from planet center)\r\n  vec4 worldPos = modelMatrix * vec4(position, 1.0);\r\n  vSurfaceNormal = normalize(worldPos.xyz - planetCenter);\r\n  \r\n  // REDUCED wind animation - much more subtle now!\r\n  float waveSize = 15.0;        // Slower wave\r\n  float tipDistance = 0.04;     // Much smaller movement (was 0.2)\r\n  float centerDistance = 0.015; // Much smaller (was 0.08)\r\n\r\n  // Create a tangent for wind direction\r\n  vec3 windDir = normalize(cross(vSurfaceNormal, vec3(0.0, 1.0, 0.1)));\r\n  \r\n  // Dynamic Wind Speed (increases with moonInteraction)\r\n  float windSpeedBase = 800.0;\r\n  float windSpeed = windSpeedBase / (1.0 + moonInteraction * 3.0); // Faster when moon is close\r\n  \r\n  // Standard Wind\r\n  float windOffset = sin((iTime / windSpeed) + (uv.x * waveSize));\r\n  \r\n  // MOON PULL EFFECT 🌑\r\n  // Grass tips get pulled towards the moon\r\n  vec3 dirToMoon = normalize(moonPosition - worldPos.xyz);\r\n  // Only affect tips (color.x > 0.6)\r\n  \r\n  if (color.x > 0.6) {\r\n    // Wind\r\n    cpos += windDir * windOffset * tipDistance * (1.0 + moonInteraction * 2.0); // Wilder wind\r\n    \r\n    // Moon Pull (Stretching towards moon)\r\n    cpos += dirToMoon * moonInteraction * 2.0; // Grow 2.0 units towards moon!\r\n    \r\n  } else if (color.x > 0.0) {\r\n    // Lower grass wind\r\n    cpos += windDir * windOffset * centerDistance * (1.0 + moonInteraction);\r\n  }\r\n\r\n  // Cloud UV from spherical coordinates\r\n  vec3 normPos = normalize(worldPos.xyz);\r\n  float theta = atan(normPos.z, normPos.x);\r\n  float phi = acos(normPos.y);\r\n  cloudUV = vec2(theta / 6.28318 + 0.5, phi / 3.14159);\r\n  cloudUV.x += iTime / 30000.0;  // Slower cloud movement\r\n  cloudUV.y += iTime / 60000.0;\r\n\r\n  // Pass world position for effects\r\n  vWorldY = length(worldPos.xyz);\r\n\r\n  vec4 mvPosition = projectionMatrix * modelViewMatrix * vec4(cpos, 1.0);\r\n  gl_Position = mvPosition;\r\n}\r\n";
+	var vert$2 = "varying vec2 vUv;\r\nvarying vec2 cloudUV;\r\nvarying vec3 vColor;\r\nvarying float vWorldY;\r\nvarying vec3 vSurfaceNormal;\r\nvarying vec3 vWorldPosition;\r\n\r\nuniform float iTime;\r\nuniform vec3 planetCenter;\r\nuniform vec3 moonPosition; // For magnetic pull\r\nuniform float moonInteraction; // 0 to 1 strength\r\n\r\nvoid main() {\r\n  vUv = uv;\r\n  vColor = color;\r\n  vec3 cpos = position;\r\n\r\n  // Calculate surface normal (direction from planet center)\r\n  vec4 worldPos = modelMatrix * vec4(position, 1.0);\r\n  vWorldPosition = worldPos.xyz;\r\n  vSurfaceNormal = normalize(worldPos.xyz - planetCenter);\r\n  \r\n  // REDUCED wind animation - much more subtle now!\r\n  float waveSize = 15.0;        // Slower wave\r\n  float tipDistance = 0.04;     // Much smaller movement (was 0.2)\r\n  float centerDistance = 0.015; // Much smaller (was 0.08)\r\n\r\n  // Create a tangent for wind direction\r\n  vec3 windDir = normalize(cross(vSurfaceNormal, vec3(0.0, 1.0, 0.1)));\r\n  \r\n  // Dynamic Wind Speed (increases with moonInteraction)\r\n  float windSpeedBase = 800.0;\r\n  float windSpeed = windSpeedBase / (1.0 + moonInteraction * 3.0); // Faster when moon is close\r\n  \r\n  // Standard Wind\r\n  float windOffset = sin((iTime / windSpeed) + (uv.x * waveSize));\r\n  \r\n  // MOON PULL EFFECT 🌑\r\n  // Grass tips get pulled towards the moon\r\n  vec3 dirToMoon = normalize(moonPosition - worldPos.xyz);\r\n  // Only affect tips (color.x > 0.6)\r\n  \r\n  if (color.x > 0.6) {\r\n    // Wind\r\n    cpos += windDir * windOffset * tipDistance * (1.0 + moonInteraction * 2.0); // Wilder wind\r\n    \r\n    // Moon Pull (Stretching towards moon)\r\n    cpos += dirToMoon * moonInteraction * 2.0; // Grow 2.0 units towards moon!\r\n    \r\n  } else if (color.x > 0.0) {\r\n    // Lower grass wind\r\n    cpos += windDir * windOffset * centerDistance * (1.0 + moonInteraction);\r\n  }\r\n\r\n  // Cloud UV from spherical coordinates\r\n  vec3 normPos = normalize(worldPos.xyz);\r\n  float theta = atan(normPos.z, normPos.x);\r\n  float phi = acos(normPos.y);\r\n  cloudUV = vec2(theta / 6.28318 + 0.5, phi / 3.14159);\r\n  cloudUV.x += iTime / 30000.0;  // Slower cloud movement\r\n  cloudUV.y += iTime / 60000.0;\r\n\r\n  // Pass world position for effects\r\n  vWorldY = length(worldPos.xyz);\r\n\r\n  vec4 mvPosition = projectionMatrix * modelViewMatrix * vec4(cpos, 1.0);\r\n  gl_Position = mvPosition;\r\n}\r\n";
 
-	var frag$2 = "uniform sampler2D texture1;\r\nuniform sampler2D textures[4];\r\nuniform float grassMinHeight; // Radial distance below which grass disappears\r\n\r\nvarying vec2 vUv;\r\nvarying vec2 cloudUV;\r\nvarying vec3 vColor;\r\nvarying float vWorldY; // This is now distance from planet center\r\n\r\nvoid main() {\r\n  // For spherical terrain, grassMinHeight is relative to planet radius\r\n  // vWorldY is the distance from center, so we compare against minimum radius\r\n  // (This check is now handled in JS, but keep for safety)\r\n  \r\n  float contrast = 1.5;\r\n  float brightness = 0.1;\r\n  vec3 color = texture2D(textures[0], vUv).rgb * contrast;\r\n  color = color + vec3(brightness, brightness, brightness);\r\n  color = mix(color, texture2D(textures[1], cloudUV).rgb, 0.4);\r\n  \r\n  gl_FragColor.rgb = color;\r\n  gl_FragColor.a = 1.0;\r\n}\r\n";
+	var frag$2 = "uniform sampler2D texture1;\r\nuniform sampler2D textures[4];\r\nuniform float grassMinHeight; \r\nuniform float globalLightIntensity; // Moonfall control\r\nuniform vec3 moonPosition;\r\nuniform float dayFactor;\r\n\r\nvarying vec2 vUv;\r\nvarying vec2 cloudUV;\r\nvarying vec3 vColor;\r\nvarying float vWorldY; \r\nvarying vec3 vWorldPosition;\r\n\r\nvoid main() {\r\n  // For spherical terrain, grassMinHeight is relative to planet radius\r\n  // vWorldY is the distance from center, so we compare against minimum radius\r\n  // (This check is now handled in JS, but keep for safety)\r\n  \r\n  float contrast = 1.5;\r\n  float brightness = 0.1;\r\n  vec3 color = texture2D(textures[0], vUv).rgb * contrast;\r\n  color = color + vec3(brightness, brightness, brightness);\r\n  color = mix(color, texture2D(textures[1], cloudUV).rgb, 0.4);\r\n  \r\n  // Moonfall Darkness\r\n  // OLD: color *= globalLightIntensity;\r\n  \r\n  // NEW: Add Directional Moon Light\r\n  vec3 moonDir = normalize(moonPosition - vWorldPosition);\r\n  float ndotl = max(0.0, dot(normalize(vWorldPosition), moonDir)); // Approx Up normal\r\n  \r\n  vec3 moonColor = vec3(0.5, 0.6, 1.0); // Soft Blue\r\n  float moonMix = 1.0 - dayFactor;\r\n  \r\n  // Base Ambient + Directional Moon\r\n  vec3 nightLight = vec3(0.1) + (moonColor * ndotl * 2.0);\r\n  \r\n  // Mix based on dayFactor\r\n  // Day: globalLightIntensity is 1.0. Night: it's 0.05.\r\n  // We want to ADD moon light at night.\r\n  \r\n  color *= (globalLightIntensity + (nightLight * moonMix * 0.5));\r\n  \r\n  gl_FragColor.rgb = color;\r\n  gl_FragColor.a = 1.0;\r\n}\r\n";
 
 	var grassShader = { frag: frag$2, vert: vert$2 };
 
 	var vert$1 = "varying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nuniform float iTime;\nuniform float planetRadius;\n\nvoid main() {\n  vUv = uv;\n  vNormal = normalize(normalMatrix * normal);\n  \n  // Get world position for cloud shadow calculation\n  vec4 worldPos = modelMatrix * vec4(position, 1.0);\n  vWorldPosition = worldPos.xyz;\n  \n  // Cloud shadow UV based on spherical position\n  // Map world position to UV using spherical coordinates\n  vec3 normPos = normalize(worldPos.xyz);\n  float theta = atan(normPos.z, normPos.x);\n  float phi = acos(normPos.y);\n  \n  cloudUV = vec2(theta / 6.28318 + 0.5, phi / 3.14159);\n  cloudUV.x += iTime / 20000.0;\n  cloudUV.y += iTime / 40000.0;\n\n  vec4 mvPosition = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n  gl_Position = mvPosition;\n}\n";
 
-	var frag$1 = "uniform sampler2D cloudTexture;\nuniform vec3 groundColor;\nuniform float iTime;\nuniform float planetRadius;\n\nvarying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  // Calculate height above base planet surface\n  float distFromCenter = length(vWorldPosition);\n  float elevation = distFromCenter - planetRadius;\n  float normalizedElevation = elevation / 3.0; // Normalize to roughly -1 to 1 range\n  \n  // Biome colors based on elevation\n  vec3 sandColor = vec3(0.93, 0.87, 0.69);      // #eddba6 (Sand)\n  vec3 grassColor = vec3(0.32, 0.48, 0.18);     // #517a2e (Grass)\n  vec3 rockColor = vec3(0.45, 0.42, 0.40);      // #736b66 (Rock)\n  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // #f2f7ff (Snow)\n  \n  vec3 color;\n  \n  // Normalized elevation is roughly -1.0 to 1.0\n  // Adjust bands for interesting distribution\n  \n  float sandThresh = -0.2;\n  float grassThresh = 0.5;\n  float rockThresh = 0.8;\n\n  // Add some noise to transitions (using simple coordinate based dithering for now)\n  float noise = sin(vWorldPosition.x * 0.5) * sin(vWorldPosition.y * 0.5) * sin(vWorldPosition.z * 0.5) * 0.05;\n  float h = normalizedElevation + noise;\n\n  if (h < sandThresh) {\n    // Sand / Beach\n    color = sandColor;\n  } else if (h < sandThresh + 0.1) {\n    // Sand -> Grass Mix\n    float t = (h - sandThresh) / 0.1;\n    color = mix(sandColor, grassColor, t);\n  } else if (h < grassThresh) {\n    // Grassland\n    color = grassColor;\n  } else if (h < grassThresh + 0.2) {\n    // Grass -> Rock Mix\n    float t = (h - grassThresh) / 0.2;\n    color = mix(grassColor, rockColor, t);\n  } else if (h < rockThresh) {\n    // Rock / Mountain\n    color = rockColor;\n  } else if (h < rockThresh + 0.15) {\n    // Rock -> Snow Mix\n    float t = (h - rockThresh) / 0.15;\n    color = mix(rockColor, snowColor, t);\n  } else {\n    // Snow Caps\n    color = snowColor;\n  }\n  \n  // Simple diffuse lighting\n  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  color *= 0.6 + diffuse * 0.5;\n  \n  // Mix in cloud shadows (subtle)\n  vec3 cloudShadow = texture2D(cloudTexture, cloudUV).rgb;\n  color = mix(color, color * cloudShadow, 0.25);\n  \n  gl_FragColor.rgb = color;\n  gl_FragColor.a = 1.0;\n}\n";
+	var frag$1 = "uniform sampler2D cloudTexture;\nuniform vec3 groundColor;\nuniform float iTime;\nuniform float planetRadius;\nuniform float globalLightIntensity; // To control brightness during Moonfall\nuniform vec3 moonPosition;\nuniform float dayFactor;\n\nvarying vec2 vUv;\nvarying vec2 cloudUV;\nvarying vec3 vNormal;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  // Calculate height above base planet surface\n  float distFromCenter = length(vWorldPosition);\n  float elevation = distFromCenter - planetRadius;\n  float normalizedElevation = elevation / 3.0; // Normalize to roughly -1 to 1 range\n  \n  // Biome colors based on elevation\n  vec3 sandColor = vec3(0.93, 0.87, 0.69);      // #eddba6 (Sand)\n  vec3 grassColor = vec3(0.32, 0.48, 0.18);     // #517a2e (Grass)\n  vec3 rockColor = vec3(0.45, 0.42, 0.40);      // #736b66 (Rock)\n  vec3 snowColor = vec3(0.95, 0.97, 1.0);       // #f2f7ff (Snow)\n  \n  vec3 color;\n  \n  // Normalized elevation is roughly -1.0 to 1.0\n  // Adjust bands for interesting distribution\n  \n  float sandThresh = -0.2;\n  float grassThresh = 0.5;\n  float rockThresh = 0.8;\n\n  // Add some noise to transitions (using simple coordinate based dithering for now)\n  float noise = sin(vWorldPosition.x * 0.5) * sin(vWorldPosition.y * 0.5) * sin(vWorldPosition.z * 0.5) * 0.05;\n  float h = normalizedElevation + noise;\n\n  if (h < sandThresh) {\n    // Sand / Beach\n    color = sandColor;\n  } else if (h < sandThresh + 0.1) {\n    // Sand -> Grass Mix\n    float t = (h - sandThresh) / 0.1;\n    color = mix(sandColor, grassColor, t);\n  } else if (h < grassThresh) {\n    // Grassland\n    color = grassColor;\n  } else if (h < grassThresh + 0.2) {\n    // Grass -> Rock Mix\n    float t = (h - grassThresh) / 0.2;\n    color = mix(grassColor, rockColor, t);\n  } else if (h < rockThresh) {\n    // Rock / Mountain\n    color = rockColor;\n  } else if (h < rockThresh + 0.15) {\n    // Rock -> Snow Mix\n    float t = (h - rockThresh) / 0.15;\n    color = mix(rockColor, snowColor, t);\n  } else {\n    // Snow Caps\n    color = snowColor;\n  }\n  \n  // Simple diffuse lighting\n  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  color *= 0.6 + diffuse * 0.5;\n  \n  // Mix in cloud shadows (subtle)\n  vec3 cloudShadow = texture2D(cloudTexture, cloudUV).rgb;\n  color = mix(color, color * cloudShadow, 0.25);\n  \n  // Apply Global Light Intensity (Moonfall Darkness) + Moon Lighting\n  // LIGHTING LOGIC (Unified with Grass)\n  \n  vec3 moonDir = normalize(moonPosition - vWorldPosition);\n  float ndotl = max(0.0, dot(vNormal, moonDir));\n  \n  vec3 ambient = vec3(0.05, 0.05, 0.1);\n  vec3 moonColor = vec3(0.6, 0.7, 1.0) * 1.5;\n  \n  float moonMix = (1.0 - dayFactor); // 1 at night\n  vec3 nightLight = ambient + (moonColor * ndotl);\n  \n  // Combine: Sun (globalLightIntensity) + Moon\n  vec3 finalLight = vec3(globalLightIntensity) + (nightLight * moonMix);\n\n  color *= finalLight;\n  \n  gl_FragColor.rgb = color;\n  gl_FragColor.a = 1.0;\n}\n";
 
 	var groundShader = { frag: frag$1, vert: vert$1 };
 
-	var vert = "varying vec2 vUv;\n\nvoid main() {\n  vUv = uv;\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}\n";
+	var vert = "varying vec2 vUv;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  vUv = uv;\n  vec4 worldPosition = modelMatrix * vec4(position, 1.0);\n  vWorldPosition = worldPosition.xyz;\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}\n";
 
-	var frag = "uniform sampler2D cloudTexture;\nuniform float opacity;\n\nvarying vec2 vUv;\n\nvoid main() {\n  vec4 texColor = texture2D(cloudTexture, vUv);\n  \n  // Convert to grayscale to determine cloud density\n  float gray = (texColor.r + texColor.g + texColor.b) / 3.0;\n  \n  // Invert and use as alpha - darker areas = more cloud = more opaque\n  // Light/white areas = sky = transparent\n  float cloudAlpha = 1.0 - gray;\n  \n  // Boost the contrast so clouds are more defined\n  cloudAlpha = smoothstep(0.1, 0.6, cloudAlpha);\n  \n  // Apply base opacity\n  cloudAlpha *= opacity;\n  \n  // Cloud color - soft white with slight blue tint\n  vec3 cloudColor = vec3(1.0, 1.0, 1.0);\n  \n  gl_FragColor = vec4(cloudColor, cloudAlpha);\n}\n";
+	var frag = "uniform sampler2D cloudTexture;\nuniform float opacity;\nuniform vec3 moonPosition;\nuniform float dayFactor; // 1 = Day, 0 = Night\nuniform float isRainy;\n\nvarying vec2 vUv;\nvarying vec3 vWorldPosition;\n\nvoid main() {\n  vec4 texColor = texture2D(cloudTexture, vUv);\n  \n  // Convert to grayscale to determine cloud density\n  float gray = (texColor.r + texColor.g + texColor.b) / 3.0;\n  \n  // Invert and use as alpha\n  float cloudAlpha = 1.0 - gray;\n  cloudAlpha = smoothstep(0.1, 0.6, cloudAlpha);\n  cloudAlpha *= opacity;\n  \n  // Lighting Logic\n  // 1. Day Lighting (Ambient + Sun): Evenly lit, slightly brighter on top? \n  vec3 sunColor = vec3(1.0, 1.0, 1.0); // Standard cloud white\n  \n  // 2. Night/Moon Lighting: Directional\n  vec3 normPos = normalize(vWorldPosition);\n  vec3 normMoon = normalize(moonPosition);\n  float moonDot = dot(normPos, normMoon); // 1 = Facing moon, -1 = Opposite\n  \n  // Moon Light Intensity\n  // Clouds facing moon get light, backside gets dark, but NOT PITCH BLACK\n  float moonLightFactor = smoothstep(-0.2, 0.5, moonDot); \n  \n  vec3 ambientNight = vec3(0.05, 0.05, 0.1); // Base night glow\n  vec3 moonDirect = vec3(0.6, 0.7, 1.0) * moonLightFactor * 2.0;\n  vec3 moonColor = ambientNight + moonDirect;\n  \n  // Final Color Mix based on Day Factor\n  // Normal Mode: Pure White. Rain Mode: Dark Grey/Black\n  vec3 baseCloudColor = mix(vec3(1.0), vec3(0.05, 0.05, 0.1), isRainy);\n  \n  // Use baseCloudColor instead of sunColor\n  sunColor = baseCloudColor; \n  \n  // Mix\n  vec3 finalColor = mix(moonColor, sunColor, dayFactor);\n  \n  // [Debug/Safety] If dayFactor is high, ensure we don't get dark artifacts\n  // unless it is Rain Mode!\n  if (isRainy < 0.5) {\n      finalColor = max(finalColor, vec3(dayFactor * 0.8)); // Force white in day\n  }\n  \n  gl_FragColor = vec4(finalColor, cloudAlpha);\n}\n";
 
 	var cloudShader = { frag, vert };
 
@@ -51634,7 +51634,25 @@
 	    model.position.sub(center); // Offset by center
 	    
 	    model.traverse((child) => {
-	      if (child.isMesh) ;
+	      if (child.isMesh) {
+	         // FORCE NEW MATERIAL
+	         // Discard oldMap because it might be black/broken.
+	         const oldNormal = child.material.normalMap;
+	         
+	         const newMat = new MeshStandardMaterial({
+	            map: null, // Discard texture for safety
+	            normalMap: oldNormal, // Keep bumps if they exist
+	            color: 0xeeeeff, // Pale moon white
+	            roughness: 0.9,
+	            emissive: new Color(0x5555ff), // Blueish glow
+	            emissiveIntensity: 0.2, // Base shimmer
+	            toneMapped: true
+	         });
+	         
+	         child.material = newMat;
+	         child.castShadow = true;
+	         child.receiveShadow = true;
+	      }
 	    });
 
 	    moonGroup.add(model);
@@ -51858,6 +51876,12 @@
 	    case 'KeyM': // Trigger Moonfall
 	      if (!isMoonfallActive) startMoonfall();
 	      break;
+	    case 'KeyN':
+	      toggleNightMode();
+	      break;
+	    case 'KeyR':
+	      toggleRainMode();
+	      break;
 	  }
 	};
 
@@ -52021,8 +52045,21 @@
 	  
 	  // Crossfade between meadow and space based on altitude
 	  // atmosphereT: 0 = on ground, 1 = in space
-	  const meadowVolume = MEADOW_MAX_VOLUME * (1 - atmosphereT) * settings.ambientVolume * masterVolume;
-	  const spaceVolume = SPACE_MAX_VOLUME * atmosphereT * settings.ambientVolume * masterVolume;
+	  let meadowVolume = MEADOW_MAX_VOLUME * (1 - atmosphereT) * settings.ambientVolume * masterVolume;
+	  let spaceVolume = SPACE_MAX_VOLUME * atmosphereT * settings.ambientVolume * masterVolume;
+	  
+	  // MOONFALL AUDIO OVERRIDE 🌑
+	  // If moonfall is active, force Space volume UP and Meadow DOWN regardless of altitude
+	  if (isMoonfallActive) {
+	     const elapsed = Date.now() - moonfallStartTime;
+	     const progress = Math.min(1, elapsed / MOONFALL_DURATION);
+	     const ease = progress * progress * progress * progress; // Match animation ease
+	     
+	     // Override volumes
+	     // STAMP OUT MEADOW completely by mid-progress
+	     meadowVolume = Math.max(0, meadowVolume * (1.0 - ease * 5.0)); 
+	     spaceVolume = Math.max(spaceVolume, SPACE_MAX_VOLUME * ease * 2.0);
+	  }
 	  
 	  audioSources.meadow.gainNode.gain.value = meadowVolume;
 	  audioSources.space.gainNode.gain.value = spaceVolume;
@@ -52075,7 +52112,10 @@
 	  textures: { value: [grassTexture, cloudTexture] },
 	  iTime: timeUniform,
 	  grassMinHeight: { value: GRASS_CANYON_THRESHOLD },
-	  planetCenter: { value: new Vector3(0, 0, 0) }
+	  planetCenter: { value: new Vector3(0, 0, 0) },
+	  globalLightIntensity: { value: 1.0 },
+	  moonPosition: { value: new Vector3(0, 100, 0) },
+	  dayFactor: { value: 1.0 }
 	};
 
 	const grassMaterial = new ShaderMaterial({
@@ -52094,7 +52134,9 @@
 	  planetCenter: { value: new Vector3(0, 0, 0) },
 	  planetRadius: { value: PLANET_RADIUS },
 	  moonPosition: { value: new Vector3(0, 100, 0) },
-	  moonInteraction: { value: 0.0 } // 0 = normal, 1 = full chaos
+	  moonInteraction: { value: 0.0 }, // 0 = normal, 1 = full chaos
+	  globalLightIntensity: { value: 1.0 },
+	  dayFactor: { value: 1.0 }
 	};
 
 	const groundMaterial = new ShaderMaterial({
@@ -52108,8 +52150,11 @@
 	const ambientLight = new AmbientLight(0xffffff, 0.5);
 	scene.add(ambientLight);
 
+	// Main Light (Sun)
 	const dirLight = new DirectionalLight(0xffffff, 1.2);
-	dirLight.position.set(-50, 100, 50);
+	const SUN_DISTANCE = 1000;
+	const defaultSunPos = new Vector3(-50, 100, 50).normalize().multiplyScalar(SUN_DISTANCE);
+	dirLight.position.copy(defaultSunPos);
 	dirLight.castShadow = true;
 	dirLight.shadow.mapSize.width = 2048; // High res shadows
 	dirLight.shadow.mapSize.height = 2048;
@@ -52200,7 +52245,8 @@
 	const atmosphereMaterial = new ShaderMaterial({
 	  uniforms: {
 	    glowColor: { value: new Color(0x88ccff) },
-	    viewVector: { value: camera.position }
+	    viewVector: { value: camera.position },
+	    opacityMultiplier: { value: 1.0 }
 	  },
 	  vertexShader: `
     varying vec3 vNormal;
@@ -52213,11 +52259,12 @@
   `,
 	  fragmentShader: `
     uniform vec3 glowColor;
+    uniform float opacityMultiplier;
     varying vec3 vNormal;
     varying vec3 vPositionNormal;
     void main() {
       float intensity = pow(0.7 - dot(vNormal, vPositionNormal), 2.0);
-      gl_FragColor = vec4(glowColor, intensity * 0.4);
+      gl_FragColor = vec4(glowColor, intensity * 0.4 * opacityMultiplier);
     }
   `,
 	  side: BackSide,
@@ -52271,7 +52318,11 @@
 	  const cloudMat = new ShaderMaterial({
 	    uniforms: {
 	      cloudTexture: { value: cloudTexture },
-	      opacity: { value: isBig ? 0.3 : 0.6 + Math.random() * 0.2 } // Big ones are fainter
+	      cloudTexture: { value: cloudTexture },
+	      opacity: { value: isBig ? 0.3 : 0.6 + Math.random() * 0.2 }, // Big ones are fainter
+	      moonPosition: { value: new Vector3(0, 100, 0) },
+	      dayFactor: { value: 1.0 },
+	      isRainy: { value: 0.0 }
 	    },
 	    vertexShader: cloudShader.vert,
 	    fragmentShader: cloudShader.frag,
@@ -52315,11 +52366,29 @@
 	const moonMesh = createMoon(scene, PLANET_RADIUS);
 
 	// MOONFALL STATE
+	// MOONFALL STATE
 	let isMoonfallActive = false;
 	let moonfallStartTime = 0;
 	const MOONFALL_DURATION = 50000; // 50 seconds
 	let initialMoonPos = new Vector3();
 	const moonTargetPos = new Vector3(PLANET_RADIUS + 500, 0, 0); // Stops 10x further away!
+
+	// NIGHT MODE STATE 🌙
+	let isNightMode = false;
+	let currentDayFactor = 1.0; // 1.0 = Day, 0.0 = Night
+
+	// RAIN MODE STATE 🌧️
+	let isRainMode = false;
+
+	function toggleNightMode() {
+	  isNightMode = !isNightMode;
+	  console.log(isNightMode ? "🌙 Night Mode ON" : "☀️ Day Mode ON");
+	}
+
+	function toggleRainMode() {
+	  isRainMode = !isRainMode;
+	  console.log(isRainMode ? "🌧️ Rain Mode ON (Black Clouds)" : "☁️ Normal Clouds");
+	}
 
 	function startMoonfall() {
 	  console.log("🌑 MOONFALL INITIATED");
@@ -52600,36 +52669,87 @@
 	              moonMesh.userData.shadowsEnabled = true;
 	           }
 	        }
-	        // Sky turning black/red
-	        const dreadColor = new Color(0x0a0000); // Deep blood black
-	        const startSky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
-	        scene.background.copy(startSky).lerp(dreadColor, Math.min(1, progress * 1.5));
 	        
-	        // Gravity changing (Low gravity chaos)
-	        GRAVITY = MathUtils.lerp(2.5, 0.2, ease); // Even lower gravity!
-	        
-	        // 🎵 Audio Shift - Safer implementation
-	        if (audioInitialized) {
-	          // Fade out meadow safely
-	          const meadowVol = Math.max(0, 1.0 - progress * 4.0);
-	          if (audioSources.meadow.gainNode) {
-	             audioSources.meadow.gainNode.gain.cancelScheduledValues(0);
-	             audioSources.meadow.gainNode.gain.value = meadowVol;
-	          }
-	          
-	          // Boost space (rumble)
-	          const rumbleVol = Math.min(1.0, progress * 3.0);
-	           if (audioSources.space.gainNode) {
-	             audioSources.space.gainNode.gain.value = rumbleVol;
-	          }
-	        }
 	      } catch (e) {
 	        console.error("Moonfall Error:", e);
 	      }
 	      
-	    } else {
-	      scene.background.copy(SKY_COLOR).lerp(SPACE_COLOR, atmosphereT);
 	    }
+	    
+	    // Calculate Moonfall Ease (0 if not active)
+	    let moonfallEase = 0.0;
+	    if (isMoonfallActive) {
+	       const elapsed = Date.now() - moonfallStartTime;
+	       const progress = Math.min(1, elapsed / MOONFALL_DURATION);
+	       moonfallEase = progress * progress * progress * progress;
+	    }
+
+	    // UNIFIED LIGHTING LOGIC 💡
+	    // Determine target day factor (1=Day, 0=Night)
+	    let targetDayFactor = isNightMode ? 0.0 : 1.0;
+	    
+	    if (isMoonfallActive) {
+	       targetDayFactor = MathUtils.lerp(1.0, 0.0, moonfallEase); // Force night during Moonfall
+	    }
+	    
+	    // Smoothly transition current factor
+	    currentDayFactor += (targetDayFactor - currentDayFactor) * delta * 2.0;
+	    
+	    // Apply Lighting based on Day Factor
+	    // Sun (Dir Light)
+	    dirLight.intensity = MathUtils.lerp(0.0, 1.2, currentDayFactor);
+	    
+	    // Ambient
+	    ambientLight.intensity = MathUtils.lerp(0.02, 0.5, currentDayFactor);
+	    
+	    // Moon Light (Inverse of Day)
+	    moonLight.intensity = MathUtils.lerp(1.5, 0.0, currentDayFactor); // Bright at night
+	    
+	    // Moon Emissive Glow (Glows at night)
+	    if (moonMesh) {
+	       moonMesh.traverse(child => {
+	          if (child.isMesh && child.material.emissive) {
+	             // Glow logic: 0.2 in day -> 2.0 at night
+	             const targetEmissive = MathUtils.lerp(2.0, 0.2, currentDayFactor);
+	             child.material.emissiveIntensity = targetEmissive;
+	          }
+	       });
+	    }
+	    
+	    // Global Material Darkening (Uniforms)
+	    const globalIntensity = MathUtils.lerp(0.05, 1.0, currentDayFactor);
+	    groundUniforms.globalLightIntensity.value = globalIntensity;
+	    grassUniforms.globalLightIntensity.value = globalIntensity;
+	    
+	    // GLOBAL LIGHTING UNIFORMS
+	    if (grassUniforms) {
+	       grassUniforms.globalLightIntensity.value = globalIntensity;
+	       grassUniforms.moonPosition.value.copy(moonMesh ? moonMesh.position : new Vector3(0,100,0));
+	       grassUniforms.dayFactor.value = currentDayFactor;
+	    }
+	    if (groundUniforms) {
+	       groundUniforms.globalLightIntensity.value = globalIntensity;
+	       groundUniforms.moonPosition.value.copy(moonMesh ? moonMesh.position : new Vector3(0,100,0));
+	       groundUniforms.dayFactor.value = currentDayFactor;
+	    }
+
+	    // Atmosphere Opacity
+	    atmosphereMaterial.uniforms.opacityMultiplier.value = currentDayFactor;
+	    
+	    // Background Color
+	    const deepSpace = new Color(0x000000);
+	    const daySky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
+	    
+	    // If night, lerp towards black regardless of atmosphere
+	    scene.background.copy(daySky).lerp(deepSpace, 1.0 - currentDayFactor);
+
+	    
+	    // Gravity changing (Low gravity chaos ONLY for Moonfall)
+	    if (isMoonfallActive) {
+	       GRAVITY = MathUtils.lerp(2.5, 0.2, moonfallEase); 
+	    }
+	        
+	    // Stars and Atmosphere Logic continues below...
 	    
 	    // Fade in stars as we go higher (use uniform for shader)
 	    starsMaterial.uniforms.opacity.value = atmosphereT;
@@ -52648,6 +52768,13 @@
 	  
 	  // Animate clouds - slow orbit around planet
 	  cloudMeshes.forEach(cloud => {
+	    // Update Lighting Uniforms
+	    if (cloud.material.uniforms) {
+	       cloud.material.uniforms.dayFactor.value = currentDayFactor;
+	       cloud.material.uniforms.isRainy.value = isRainMode ? 1.0 : 0.0;
+	       if (moonMesh) cloud.material.uniforms.moonPosition.value.copy(moonMesh.position);
+	    }
+
 	    const data = cloud.userData;
 	    data.theta += data.speed * delta;
 	    data.phi += data.verticalDrift * delta;
@@ -52665,17 +52792,17 @@
 	    cloud.lookAt(0, 0, 0);
 	    cloud.rotateX(Math.PI);
 	    
-	    // Moon Interaction: Clouds grow HUGE near the moon
+	    // Moon Interaction: Clouds dissipate/flee near the moon (reverse of previous)
 	    if (moonMesh) {
 	       const distToMoon = cloud.position.distanceTo(moonMesh.position);
-	       // If close (within 800 units), scale up
-	       if (distToMoon < 800) {
-	          const proximity = 1.0 - (distToMoon / 800.0);
-	          const targetScale = 1.0 + proximity * 5.0; // Grow up to 6x!
+	       // If close (within 1200 units), shrink/disappear
+	       if (distToMoon < 1200) {
+	          const proximity = 1.0 - (distToMoon / 1200.0);
+	          const targetScale = Math.max(0.01, 1.0 - proximity); // Shrink to near zero
 	          cloud.scale.setScalar(targetScale);
 	          cloud.userData.isNearMoon = true;
 	       } else if (cloud.userData.isNearMoon) {
-	          // Shrink back
+	          // Grow back
 	          cloud.scale.lerp(new Vector3(1,1,1), 0.05);
 	          if (Math.abs(cloud.scale.x - 1) < 0.1) cloud.userData.isNearMoon = false;
 	       }

@@ -210,6 +210,12 @@ const onKeyDown = function (event) {
     case 'KeyM': // Trigger Moonfall
       if (!isMoonfallActive) startMoonfall();
       break;
+    case 'KeyN':
+      toggleNightMode();
+      break;
+    case 'KeyR':
+      toggleRainMode();
+      break;
   }
 };
 
@@ -373,8 +379,21 @@ function updateAmbientAudio(atmosphereT) {
   
   // Crossfade between meadow and space based on altitude
   // atmosphereT: 0 = on ground, 1 = in space
-  const meadowVolume = MEADOW_MAX_VOLUME * (1 - atmosphereT) * settings.ambientVolume * masterVolume;
-  const spaceVolume = SPACE_MAX_VOLUME * atmosphereT * settings.ambientVolume * masterVolume;
+  let meadowVolume = MEADOW_MAX_VOLUME * (1 - atmosphereT) * settings.ambientVolume * masterVolume;
+  let spaceVolume = SPACE_MAX_VOLUME * atmosphereT * settings.ambientVolume * masterVolume;
+  
+  // MOONFALL AUDIO OVERRIDE 🌑
+  // If moonfall is active, force Space volume UP and Meadow DOWN regardless of altitude
+  if (isMoonfallActive) {
+     const elapsed = Date.now() - moonfallStartTime;
+     const progress = Math.min(1, elapsed / MOONFALL_DURATION);
+     const ease = progress * progress * progress * progress; // Match animation ease
+     
+     // Override volumes
+     // STAMP OUT MEADOW completely by mid-progress
+     meadowVolume = Math.max(0, meadowVolume * (1.0 - ease * 5.0)); 
+     spaceVolume = Math.max(spaceVolume, SPACE_MAX_VOLUME * ease * 2.0);
+  }
   
   audioSources.meadow.gainNode.gain.value = meadowVolume;
   audioSources.space.gainNode.gain.value = spaceVolume;
@@ -427,7 +446,10 @@ const grassUniforms = {
   textures: { value: [grassTexture, cloudTexture] },
   iTime: timeUniform,
   grassMinHeight: { value: GRASS_CANYON_THRESHOLD },
-  planetCenter: { value: new THREE.Vector3(0, 0, 0) }
+  planetCenter: { value: new THREE.Vector3(0, 0, 0) },
+  globalLightIntensity: { value: 1.0 },
+  moonPosition: { value: new THREE.Vector3(0, 100, 0) },
+  dayFactor: { value: 1.0 }
 };
 
 const grassMaterial = new THREE.ShaderMaterial({
@@ -446,7 +468,9 @@ const groundUniforms = {
   planetCenter: { value: new THREE.Vector3(0, 0, 0) },
   planetRadius: { value: PLANET_RADIUS },
   moonPosition: { value: new THREE.Vector3(0, 100, 0) },
-  moonInteraction: { value: 0.0 } // 0 = normal, 1 = full chaos
+  moonInteraction: { value: 0.0 }, // 0 = normal, 1 = full chaos
+  globalLightIntensity: { value: 1.0 },
+  dayFactor: { value: 1.0 }
 };
 
 const groundMaterial = new THREE.ShaderMaterial({
@@ -460,8 +484,11 @@ const groundMaterial = new THREE.ShaderMaterial({
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
+// Main Light (Sun)
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(-50, 100, 50);
+const SUN_DISTANCE = 1000;
+const defaultSunPos = new THREE.Vector3(-50, 100, 50).normalize().multiplyScalar(SUN_DISTANCE);
+dirLight.position.copy(defaultSunPos);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048; // High res shadows
 dirLight.shadow.mapSize.height = 2048;
@@ -552,7 +579,8 @@ const atmosphereGeometry = new THREE.SphereBufferGeometry(PLANET_RADIUS + 0.5, 3
 const atmosphereMaterial = new THREE.ShaderMaterial({
   uniforms: {
     glowColor: { value: new THREE.Color(0x88ccff) },
-    viewVector: { value: camera.position }
+    viewVector: { value: camera.position },
+    opacityMultiplier: { value: 1.0 }
   },
   vertexShader: `
     varying vec3 vNormal;
@@ -565,11 +593,12 @@ const atmosphereMaterial = new THREE.ShaderMaterial({
   `,
   fragmentShader: `
     uniform vec3 glowColor;
+    uniform float opacityMultiplier;
     varying vec3 vNormal;
     varying vec3 vPositionNormal;
     void main() {
       float intensity = pow(0.7 - dot(vNormal, vPositionNormal), 2.0);
-      gl_FragColor = vec4(glowColor, intensity * 0.4);
+      gl_FragColor = vec4(glowColor, intensity * 0.4 * opacityMultiplier);
     }
   `,
   side: THREE.BackSide,
@@ -626,7 +655,11 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
   const cloudMat = new THREE.ShaderMaterial({
     uniforms: {
       cloudTexture: { value: cloudTexture },
-      opacity: { value: isBig ? 0.3 : 0.6 + Math.random() * 0.2 } // Big ones are fainter
+      cloudTexture: { value: cloudTexture },
+      opacity: { value: isBig ? 0.3 : 0.6 + Math.random() * 0.2 }, // Big ones are fainter
+      moonPosition: { value: new THREE.Vector3(0, 100, 0) },
+      dayFactor: { value: 1.0 },
+      isRainy: { value: 0.0 }
     },
     vertexShader: cloudShader.vert,
     fragmentShader: cloudShader.frag,
@@ -670,6 +703,7 @@ const birdSwarm = new BirdSwarm(scene, 100); // 100 birds
 const moonMesh = createMoon(scene, PLANET_RADIUS);
 
 // MOONFALL STATE
+// MOONFALL STATE
 let isMoonfallActive = false;
 let moonfallStartTime = 0;
 const MOONFALL_DURATION = 50000; // 50 seconds
@@ -677,8 +711,25 @@ let initialMoonPos = new THREE.Vector3();
 const moonTargetPos = new THREE.Vector3(PLANET_RADIUS + 500, 0, 0); // Stops 10x further away!
 const MOON_RADIUS_PHYSICS = 75; 
 
+// NIGHT MODE STATE 🌙
+let isNightMode = false;
+let currentDayFactor = 1.0; // 1.0 = Day, 0.0 = Night
+
+// RAIN MODE STATE 🌧️
+let isRainMode = false;
+
 // PHYSICS STATE
 let isOnMoon = false;
+
+function toggleNightMode() {
+  isNightMode = !isNightMode;
+  console.log(isNightMode ? "🌙 Night Mode ON" : "☀️ Day Mode ON");
+}
+
+function toggleRainMode() {
+  isRainMode = !isRainMode;
+  console.log(isRainMode ? "🌧️ Rain Mode ON (Black Clouds)" : "☁️ Normal Clouds");
+}
 
 function startMoonfall() {
   console.log("🌑 MOONFALL INITIATED");
@@ -959,36 +1010,90 @@ const animate = function () {
               moonMesh.userData.shadowsEnabled = true;
            }
         }
-        // Sky turning black/red
-        const dreadColor = new THREE.Color(0x0a0000); // Deep blood black
-        const startSky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
-        scene.background.copy(startSky).lerp(dreadColor, Math.min(1, progress * 1.5));
         
-        // Gravity changing (Low gravity chaos)
-        GRAVITY = THREE.MathUtils.lerp(2.5, 0.2, ease); // Even lower gravity!
-        
-        // 🎵 Audio Shift - Safer implementation
-        if (audioInitialized) {
-          // Fade out meadow safely
-          const meadowVol = Math.max(0, 1.0 - progress * 4.0);
-          if (audioSources.meadow.gainNode) {
-             audioSources.meadow.gainNode.gain.cancelScheduledValues(0);
-             audioSources.meadow.gainNode.gain.value = meadowVol;
-          }
-          
-          // Boost space (rumble)
-          const rumbleVol = Math.min(1.0, progress * 3.0);
-           if (audioSources.space.gainNode) {
-             audioSources.space.gainNode.gain.value = rumbleVol;
-          }
-        }
       } catch (e) {
         console.error("Moonfall Error:", e);
       }
       
     } else {
-      scene.background.copy(SKY_COLOR).lerp(SPACE_COLOR, atmosphereT);
+      // Normal atmosphere calc when not in moonfall
+      // scene.background is handled below in unified logic
     }
+    
+    // Calculate Moonfall Ease (0 if not active)
+    let moonfallEase = 0.0;
+    if (isMoonfallActive) {
+       const elapsed = Date.now() - moonfallStartTime;
+       const progress = Math.min(1, elapsed / MOONFALL_DURATION);
+       moonfallEase = progress * progress * progress * progress;
+    }
+
+    // UNIFIED LIGHTING LOGIC 💡
+    // Determine target day factor (1=Day, 0=Night)
+    let targetDayFactor = isNightMode ? 0.0 : 1.0;
+    
+    if (isMoonfallActive) {
+       targetDayFactor = THREE.MathUtils.lerp(1.0, 0.0, moonfallEase); // Force night during Moonfall
+    }
+    
+    // Smoothly transition current factor
+    currentDayFactor += (targetDayFactor - currentDayFactor) * delta * 2.0;
+    
+    // Apply Lighting based on Day Factor
+    // Sun (Dir Light)
+    dirLight.intensity = THREE.MathUtils.lerp(0.0, 1.2, currentDayFactor);
+    
+    // Ambient
+    ambientLight.intensity = THREE.MathUtils.lerp(0.02, 0.5, currentDayFactor);
+    
+    // Moon Light (Inverse of Day)
+    moonLight.intensity = THREE.MathUtils.lerp(1.5, 0.0, currentDayFactor); // Bright at night
+    
+    // Moon Emissive Glow (Glows at night)
+    if (moonMesh) {
+       moonMesh.traverse(child => {
+          if (child.isMesh && child.material.emissive) {
+             // Glow logic: 0.2 in day -> 2.0 at night
+             const targetEmissive = THREE.MathUtils.lerp(2.0, 0.2, currentDayFactor);
+             child.material.emissiveIntensity = targetEmissive;
+          }
+       });
+    }
+    
+    // Global Material Darkening (Uniforms)
+    const globalIntensity = THREE.MathUtils.lerp(0.05, 1.0, currentDayFactor);
+    groundUniforms.globalLightIntensity.value = globalIntensity;
+    grassUniforms.globalLightIntensity.value = globalIntensity;
+    
+    // GLOBAL LIGHTING UNIFORMS
+    if (grassUniforms) {
+       grassUniforms.globalLightIntensity.value = globalIntensity;
+       grassUniforms.moonPosition.value.copy(moonMesh ? moonMesh.position : new THREE.Vector3(0,100,0));
+       grassUniforms.dayFactor.value = currentDayFactor;
+    }
+    if (groundUniforms) {
+       groundUniforms.globalLightIntensity.value = globalIntensity;
+       groundUniforms.moonPosition.value.copy(moonMesh ? moonMesh.position : new THREE.Vector3(0,100,0));
+       groundUniforms.dayFactor.value = currentDayFactor;
+    }
+
+    // Atmosphere Opacity
+    atmosphereMaterial.uniforms.opacityMultiplier.value = currentDayFactor;
+    
+    // Background Color
+    const deepSpace = new THREE.Color(0x000000);
+    const daySky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
+    
+    // If night, lerp towards black regardless of atmosphere
+    scene.background.copy(daySky).lerp(deepSpace, 1.0 - currentDayFactor);
+
+    
+    // Gravity changing (Low gravity chaos ONLY for Moonfall)
+    if (isMoonfallActive) {
+       GRAVITY = THREE.MathUtils.lerp(2.5, 0.2, moonfallEase); 
+    }
+        
+    // Stars and Atmosphere Logic continues below...
     
     // Fade in stars as we go higher (use uniform for shader)
     starsMaterial.uniforms.opacity.value = atmosphereT;
@@ -1007,6 +1112,13 @@ const animate = function () {
   
   // Animate clouds - slow orbit around planet
   cloudMeshes.forEach(cloud => {
+    // Update Lighting Uniforms
+    if (cloud.material.uniforms) {
+       cloud.material.uniforms.dayFactor.value = currentDayFactor;
+       cloud.material.uniforms.isRainy.value = isRainMode ? 1.0 : 0.0;
+       if (moonMesh) cloud.material.uniforms.moonPosition.value.copy(moonMesh.position);
+    }
+
     const data = cloud.userData;
     data.theta += data.speed * delta;
     data.phi += data.verticalDrift * delta;
@@ -1024,17 +1136,17 @@ const animate = function () {
     cloud.lookAt(0, 0, 0);
     cloud.rotateX(Math.PI);
     
-    // Moon Interaction: Clouds grow HUGE near the moon
+    // Moon Interaction: Clouds dissipate/flee near the moon (reverse of previous)
     if (moonMesh) {
        const distToMoon = cloud.position.distanceTo(moonMesh.position);
-       // If close (within 800 units), scale up
-       if (distToMoon < 800) {
-          const proximity = 1.0 - (distToMoon / 800.0);
-          const targetScale = 1.0 + proximity * 5.0; // Grow up to 6x!
+       // If close (within 1200 units), shrink/disappear
+       if (distToMoon < 1200) {
+          const proximity = 1.0 - (distToMoon / 1200.0);
+          const targetScale = Math.max(0.01, 1.0 - proximity); // Shrink to near zero
           cloud.scale.setScalar(targetScale);
           cloud.userData.isNearMoon = true;
        } else if (cloud.userData.isNearMoon) {
-          // Shrink back
+          // Grow back
           cloud.scale.lerp(new THREE.Vector3(1,1,1), 0.05);
           if (Math.abs(cloud.scale.x - 1) < 0.1) cloud.userData.isNearMoon = false;
        }
