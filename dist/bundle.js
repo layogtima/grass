@@ -48127,9 +48127,9 @@
 	        canJump = false;
 	      }
 	      break;
-	    case 'KeyG':
-	      regenerateGrassAsync();
-	      break;
+	    // case 'KeyG':
+	    //   regenerateGrassAsync();
+	    //   break;
 	  }
 	};
 
@@ -48607,25 +48607,21 @@
 	const brushUI = document.createElement('div');
 	brushUI.style.position = 'absolute';
 	brushUI.style.bottom = '30px';
-	brushUI.style.left = '50%';
-	brushUI.style.transform = 'translateX(-50%)';
-	brushUI.style.color = '#000';
+	brushUI.style.right = '30px';
+	brushUI.style.color = '#fff';
 	brushUI.style.fontFamily = "'Cormorant Garamond', serif";
-	brushUI.style.fontSize = '20px';
+	brushUI.style.fontSize = '24px';
 	brushUI.style.fontStyle = 'italic';
-	brushUI.style.textAlign = 'center';
-	brushUI.style.padding = '12px 30px';
-	brushUI.style.background = 'rgba(255, 255, 255, 0.95)';
-	brushUI.style.border = '1px solid rgba(0, 0, 0, 0.1)';
-	brushUI.style.borderRadius = '30px';
-	brushUI.style.display = 'none';
+	brushUI.style.textAlign = 'right';
 	brushUI.style.pointerEvents = 'none';
-	brushUI.style.boxShadow = '0 10px 30px rgba(0,0,0,0.1)';
+	brushUI.style.textShadow = '0 1px 4px rgba(0,0,0,0.5)';
+	brushUI.style.display = 'none';
 	document.body.appendChild(brushUI);
 
 	function updateBrushUI() {
-	  brushUI.innerHTML = `🌍 Planet Mode | Brush: ${(brushRadius * 100).toFixed(0)}% | LMB: Raise ⬆️ | RMB: Lower ⬇️`;
+	  brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower</span>`;
 	}
+
 	// updateBrushUI();
 
 	// Generate everything
@@ -48746,6 +48742,9 @@
 	      verticalVelocity = 0;
 	      canJump = true;
 	    }
+
+	    // Recalculate up vector based on NEW position to prevent jitter
+	    playerUp.copy(camera.position).normalize();
 	    
 	    // Update camera orientation
 	    // Camera looks along the surface with vertical tilt
@@ -49119,28 +49118,6 @@
 	  ];
 
 	  return { verts, indices };
-	}
-
-	// Async grass regeneration
-	let isRegeneratingGrass = false;
-
-	function regenerateGrassAsync() {
-	  if (isRegeneratingGrass) return;
-	  
-	  console.log('🌿 Starting async grass regeneration...');
-	  isRegeneratingGrass = true;
-	  
-	  if (grassMesh) {
-	    scene.remove(grassMesh);
-	    grassMesh.geometry.dispose();
-	    grassMesh = null;
-	  }
-	  
-	  // Use requestAnimationFrame to avoid blocking
-	  requestAnimationFrame(() => {
-	    grassMesh = generateSphericalGrass(true);
-	    isRegeneratingGrass = false;
-	  });
 	}
 
 })();

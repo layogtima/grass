@@ -691,8 +691,7 @@ document.body.appendChild(brushUI);
 function updateBrushUI() {
   brushUI.innerHTML = `Brush Size: ${(brushRadius * 100).toFixed(0)}%<br><span style="font-size: 18px; opacity: 0.8">LMB: Raise · RMB: Lower</span>`;
 }
-  brushUI.innerHTML = `🌍 Planet Mode | Brush: ${(brushRadius * 100).toFixed(0)}% | LMB: Raise ⬆️ | RMB: Lower ⬇️`;
-}
+
 // updateBrushUI();
 
 // Generate everything
