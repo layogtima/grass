@@ -749,6 +749,80 @@ for (let i = 0; i < CLOUD_COUNT; i++) {
 }
 
 // =============================================================================
+// Fireflies (Night Mode Particles) ✨
+// =============================================================================
+const fireflyGeometry = new THREE.BufferGeometry();
+const fireflyCount = 200;
+const fireflyPositions = [];
+const fireflyVelocities = [];
+const fireflyPhases = [];
+
+for (let i = 0; i < fireflyCount; i++) {
+  // Random position around the planet (surface + random height)
+  const r = PLANET_RADIUS + 0.5 + Math.random() * 3.0; // Fly low near grass
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  
+  const x = r * Math.sin(phi) * Math.cos(theta);
+  const y = r * Math.cos(phi);
+  const z = r * Math.sin(phi) * Math.sin(theta);
+  
+  fireflyPositions.push(x, y, z);
+  
+  // Random velocity (wander)
+  fireflyVelocities.push(
+    (Math.random() - 0.5) * 0.05,
+    (Math.random() - 0.5) * 0.05,
+    (Math.random() - 0.5) * 0.05
+  );
+  
+  fireflyPhases.push(Math.random() * Math.PI * 2);
+}
+
+fireflyGeometry.setAttribute('position', new THREE.Float32BufferAttribute(fireflyPositions, 3));
+fireflyGeometry.setAttribute('phase', new THREE.Float32BufferAttribute(fireflyPhases, 1));
+
+const fireflyMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    time: { value: 0 },
+    globalOpacity: { value: 0 }, // Controlled by Day/Night cycle
+    color: { value: new THREE.Color(0xffff88) } // Warm yellow-green
+  },
+  vertexShader: `
+    attribute float phase;
+    varying float vPhase;
+    void main() {
+      vPhase = phase;
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = (50.0 / -mvPosition.z); // Size attenuation
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform float time;
+    uniform float globalOpacity;
+    uniform vec3 color;
+    varying float vPhase;
+    void main() {
+      // Circle shape
+      float dist = length(gl_PointCoord - vec2(0.5));
+      if (dist > 0.5) discard;
+      
+      // Pulse animation
+      float pulse = 0.5 + 0.5 * sin(time * 3.0 + vPhase);
+      
+      gl_FragColor = vec4(color, globalOpacity * pulse);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending
+});
+
+const fireflies = new THREE.Points(fireflyGeometry, fireflyMaterial);
+scene.add(fireflies);
+
+// =============================================================================
 // New Features: Birds & Moon
 // =============================================================================
 
@@ -828,6 +902,12 @@ function updateBrushCursor() {
     return;
   }
   
+  // UI Idle Logic - Hide cursor if idle
+  if (!isUIActive) {
+     brushCursor.visible = false;
+     return;
+  }
+  
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   const intersects = raycaster.intersectObject(groundMesh);
   
@@ -859,6 +939,14 @@ function updateBrushCursor() {
   }
 }
 
+// =============================================================================
+// UI Idle State & Brush UI
+// =============================================================================
+
+let lastActionTime = Date.now();
+const IDLE_TIMEOUT = 2000; // 2 seconds
+let isUIActive = true;
+
 // Brush UI
 const brushUI = document.createElement('div');
 brushUI.style.position = 'absolute';
@@ -872,6 +960,7 @@ brushUI.style.textAlign = 'right';
 brushUI.style.pointerEvents = 'none';
 brushUI.style.textShadow = '0 1px 4px rgba(0,0,0,0.5)';
 brushUI.style.display = 'none';
+brushUI.style.transition = 'opacity 0.5s ease-in-out'; // Smooth fade
 document.body.appendChild(brushUI);
 
 function updateBrushUI() {
@@ -908,6 +997,9 @@ setTimeout(() => {
 document.addEventListener('mousedown', (event) => {
   if (!isPointerLocked) return;
   
+  // Reset Idle Timer
+  lastActionTime = Date.now();
+  
   if (event.button === 0) {
     sculptMode = 1;
     isMouseDown = true;
@@ -929,6 +1021,10 @@ document.addEventListener('mouseup', (event) => {
 
 document.addEventListener('wheel', (event) => {
   if (!isPointerLocked) return;
+  
+  // Reset Idle Timer
+  lastActionTime = Date.now();
+  
   brushRadius -= event.deltaY * 0.001;
   brushRadius = Math.max(BRUSH_MIN, Math.min(BRUSH_MAX, brushRadius));
   updateBrushUI();
@@ -1167,6 +1263,40 @@ const animate = function () {
     const isUnderwater = currentRadius < seaLevel;
     updateAmbientAudio(atmosphereT, currentDayFactor, isUnderwater);
     
+    // 🌊 UNDERWATER VISUALS
+    const UNDERWATER_COLOR = new THREE.Color(0x001e40);
+    let targetFogDensity = 0.0;
+    
+    // Check Idle State
+    if (Date.now() - lastActionTime > IDLE_TIMEOUT) {
+       isUIActive = false;
+       brushUI.style.opacity = '0';
+       // Cursor hidden in updateBrushCursor
+    } else {
+       isUIActive = true;
+       brushUI.style.opacity = '1';
+    }
+    
+    if (isUnderwater) {
+       // Interpolate background towards underwater color
+       // We use a separate 'underwaterFactor' to smooth the transition
+       const depth = seaLevel - currentRadius;
+       const underwaterStrength = Math.min(1.0, depth * 2.0); // Full effect at 0.5 depth
+       
+       scene.background.lerp(UNDERWATER_COLOR, underwaterStrength * 0.8);
+       
+       // Add Fog
+       targetFogDensity = 0.05 * underwaterStrength;
+    } 
+    
+    // Smoothly update fog
+    if (!scene.fog) {
+       scene.fog = new THREE.FogExp2(UNDERWATER_COLOR, 0.0);
+    }
+    // Lerp fog density
+    scene.fog.color.copy(UNDERWATER_COLOR);
+    scene.fog.density += (targetFogDensity - scene.fog.density) * delta * 2.0;
+
     // 🎵 Update walking audio (only when moving AND on ground)
     const isMoving = moveForward || moveBackward || moveLeft || moveRight;
     updateWalkingAudio(isMoving, canJump);
@@ -1218,6 +1348,67 @@ const animate = function () {
   // Animate Birds
   birdSwarm.update(delta);
 
+  // Animate Fireflies
+  if (fireflies) {
+     // Visibility based on Night Mode (inverse of Day Factor)
+     // Also hide if underwater!
+     const isUnderwater = camera.position.length() < (PLANET_RADIUS - 0.2);
+     let targetOpacity = (1.0 - currentDayFactor);
+     
+     if (isUnderwater) targetOpacity = 0.0; // Hide underwater
+     
+     fireflies.material.uniforms.globalOpacity.value = targetOpacity;
+     fireflies.material.uniforms.time.value = elapsedTime / 1000;
+     
+     if (targetOpacity > 0.01) {
+       const positions = fireflies.geometry.attributes.position.array;
+       
+       for(let i=0; i < fireflyCount; i++) {
+          const idx = i * 3;
+          let x = positions[idx];
+          let y = positions[idx+1];
+          let z = positions[idx+2];
+          
+          // Apply velocity
+          x += fireflyVelocities[i*3];
+          y += fireflyVelocities[i*3+1];
+          z += fireflyVelocities[i*3+2];
+          
+          // Constrain to planet surface + some height
+          // Simple projection: Normalize and scale
+          const currentPos = new THREE.Vector3(x, y, z);
+          // Gently pull back to target radius range if it drifts too far
+          const r = currentPos.length();
+          const targetR = PLANET_RADIUS + 2.0; // Ideally float around 2m height
+          
+          // Soft tether to surface
+          if (r < PLANET_RADIUS + 0.5 || r > PLANET_RADIUS + 5.0) {
+              const dir = currentPos.clone().normalize();
+              const corectedPos = dir.multiplyScalar(targetR);
+              // Lerp back
+              x += (corectedPos.x - x) * 0.01;
+              y += (corectedPos.y - y) * 0.01;
+              z += (corectedPos.z - z) * 0.01;
+          }
+          
+          // Jitter direction randomly
+          fireflyVelocities[i*3] += (Math.random() - 0.5) * 0.002;
+          fireflyVelocities[i*3+1] += (Math.random() - 0.5) * 0.002;
+          fireflyVelocities[i*3+2] += (Math.random() - 0.5) * 0.002;
+          
+          // Dampen velocity
+          fireflyVelocities[i*3] *= 0.99;
+          fireflyVelocities[i*3+1] *= 0.99;
+          fireflyVelocities[i*3+2] *= 0.99;
+
+          positions[idx] = x;
+          positions[idx+1] = y;
+          positions[idx+2] = z;
+       }
+       fireflies.geometry.attributes.position.needsUpdate = true;
+     }
+  }
+
   // Sculpt terrain while mouse is held
   if (isMouseDown && sculptMode !== 0) {
     sculptTerrain(sculptMode);
@@ -1258,7 +1449,7 @@ function generatePlanet() {
   
   const positions = geometry.attributes.position.array;
   
-  if (savedTerrain && savedTerrain.vertices && savedTerrain.vertices.length === positions.length) {
+  if (false && savedTerrain && savedTerrain.vertices && savedTerrain.vertices.length === positions.length) {
     console.log('💾 Restoring saved spherical terrain...');
     for (let i = 0; i < positions.length; i++) {
       positions[i] = savedTerrain.vertices[i];
