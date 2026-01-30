@@ -839,9 +839,55 @@ let initialMoonPos = new THREE.Vector3();
 const moonTargetPos = new THREE.Vector3(PLANET_RADIUS + 500, 0, 0); // Stops 10x further away!
 const MOON_RADIUS_PHYSICS = 75; 
 
-// NIGHT MODE STATE 🌙
-let isNightMode = false;
-let currentDayFactor = 1.0; // 1.0 = Day, 0.0 = Night
+// TIME OF DAY STATE ☀️🌇🌙🌅
+let timeOfDay = 0; // 0=Day, 1=Dusk, 2=Night, 3=Dawn
+const TIME_NAMES = ["Day ☀️", "Dusk 🌇", "Night 🌙", "Dawn 🌅"];
+
+const TIME_CONFIGS = [
+  { // DAY
+    sky: new THREE.Color(0x87ceeb), 
+    sun: new THREE.Color(0xffffff), 
+    sunIntensity: 1.2, 
+    ambientIntensity: 0.5, 
+    dayFactor: 1.0,
+    fogColor: new THREE.Color(0x87ceeb) // Match sky
+  },
+  { // DUSK (Orange/Purple)
+    sky: new THREE.Color(0xffa07a), // Light Salmon
+    sun: new THREE.Color(0xff4500), // Orange Red
+    sunIntensity: 0.8, 
+    ambientIntensity: 0.3, 
+    dayFactor: 0.4,
+    fogColor: new THREE.Color(0xffa07a)
+  },
+  { // NIGHT
+    sky: new THREE.Color(0x0a0a15), 
+    sun: new THREE.Color(0x000000), 
+    sunIntensity: 0.0, 
+    ambientIntensity: 0.02, 
+    dayFactor: 0.0,
+    fogColor: new THREE.Color(0x0a0a15)
+  },
+  { // DAWN (Pink/Peach)
+    sky: new THREE.Color(0xffd1dc), // Light Pink (Pastel)
+    sun: new THREE.Color(0xffd700), // Gold
+    sunIntensity: 0.8, 
+    ambientIntensity: 0.4, 
+    dayFactor: 0.5,
+    fogColor: new THREE.Color(0xffd1dc)
+  }
+];
+
+// Current interpolated state
+let currentRendertarget = {
+  sky: TIME_CONFIGS[0].sky.clone(),
+  sun: TIME_CONFIGS[0].sun.clone(),
+  sunIntensity: TIME_CONFIGS[0].sunIntensity,
+  ambientIntensity: TIME_CONFIGS[0].ambientIntensity,
+  dayFactor: TIME_CONFIGS[0].dayFactor
+};
+
+let currentDayFactor = 1.0; // Restored global variable
 
 // RAIN MODE STATE 🌧️
 let isRainMode = false;
@@ -850,8 +896,11 @@ let isRainMode = false;
 let isOnMoon = false;
 
 function toggleNightMode() {
-  isNightMode = !isNightMode;
-  console.log(isNightMode ? "🌙 Night Mode ON" : "☀️ Day Mode ON");
+  timeOfDay = (timeOfDay + 1) % 4;
+  console.log(`⏰ Time updated: ${TIME_NAMES[timeOfDay]}`);
+  
+  // Update instructions if needed
+  // instructions.innerHTML ...
 }
 
 function toggleRainMode() {
@@ -1185,38 +1234,46 @@ const animate = function () {
     }
 
     // UNIFIED LIGHTING LOGIC 💡
-    // Determine target day factor (1=Day, 0=Night)
-    let targetDayFactor = isNightMode ? 0.0 : 1.0;
+    // Lerp towards target config
+    const targetConfig = TIME_CONFIGS[timeOfDay];
+    const lerpSpeed = delta * 0.5; // Slow smooth transition
     
+    // Moonfall Override
+    let targetDayFactor = targetConfig.dayFactor;
     if (isMoonfallActive) {
-       targetDayFactor = THREE.MathUtils.lerp(1.0, 0.0, moonfallEase); // Force night during Moonfall
+       targetDayFactor = THREE.MathUtils.lerp(targetDayFactor, 0.0, moonfallEase); // Force night
+       currentRendertarget.sunIntensity = THREE.MathUtils.lerp(currentRendertarget.sunIntensity, 0.0, moonfallEase);
     }
     
-    // Smoothly transition current factor
-    currentDayFactor += (targetDayFactor - currentDayFactor) * delta * 2.0;
+    // Interpolate Global Values
+    currentDayFactor = THREE.MathUtils.lerp(currentDayFactor, targetDayFactor, lerpSpeed);
     
-    // Apply Lighting based on Day Factor
-    // Sun (Dir Light)
-    dirLight.intensity = THREE.MathUtils.lerp(0.0, 1.2, currentDayFactor);
+    currentRendertarget.sky.lerp(targetConfig.sky, lerpSpeed);
+    currentRendertarget.sun.lerp(targetConfig.sun, lerpSpeed);
+    currentRendertarget.sunIntensity = THREE.MathUtils.lerp(currentRendertarget.sunIntensity, targetConfig.sunIntensity, lerpSpeed);
+    currentRendertarget.ambientIntensity = THREE.MathUtils.lerp(currentRendertarget.ambientIntensity, targetConfig.ambientIntensity, lerpSpeed);
     
-    // Ambient
-    ambientLight.intensity = THREE.MathUtils.lerp(0.02, 0.5, currentDayFactor);
+    // Apply to Scene
+    dirLight.color.copy(currentRendertarget.sun);
+    dirLight.intensity = currentRendertarget.sunIntensity;
+    ambientLight.intensity = currentRendertarget.ambientIntensity;
     
-    // Moon Light (Inverse of Day)
-    moonLight.intensity = THREE.MathUtils.lerp(1.5, 0.0, currentDayFactor); // Bright at night
+    // Moon Light (Inverse of Day Phase logic but simpler)
+    // Only bright at night
+    const moonIntensityTarget = (timeOfDay === 2) ? 1.5 : 0.0;
+    moonLight.intensity = THREE.MathUtils.lerp(moonLight.intensity, moonIntensityTarget, lerpSpeed);
     
-    // Moon Emissive Glow (Glows at night)
+    // Moon Emissive Glow
     if (moonMesh) {
        moonMesh.traverse(child => {
           if (child.isMesh && child.material.emissive) {
-             // Glow logic: 0.2 in day -> 2.0 at night
-             const targetEmissive = THREE.MathUtils.lerp(2.0, 0.2, currentDayFactor);
-             child.material.emissiveIntensity = targetEmissive;
+             const targetEmissive = (timeOfDay === 2) ? 2.0 : 0.2;
+             child.material.emissiveIntensity = THREE.MathUtils.lerp(child.material.emissiveIntensity, targetEmissive, lerpSpeed);
           }
        });
     }
     
-    // Global Material Darkening (Uniforms)
+    // Global Material Darkening
     const globalIntensity = THREE.MathUtils.lerp(0.05, 1.0, currentDayFactor);
     groundUniforms.globalLightIntensity.value = globalIntensity;
     grassUniforms.globalLightIntensity.value = globalIntensity;
@@ -1238,9 +1295,10 @@ const animate = function () {
     
     // Background Color
     const deepSpace = new THREE.Color(0x000000);
-    const daySky = SKY_COLOR.clone().lerp(SPACE_COLOR, atmosphereT);
+    // Use our interpolated sky color instead of fixed constant
+    const daySky = currentRendertarget.sky.clone().lerp(SPACE_COLOR, atmosphereT);
     
-    // If night, lerp towards black regardless of atmosphere
+    // If night (based on dayFactor), lerp towards black
     scene.background.copy(daySky).lerp(deepSpace, 1.0 - currentDayFactor);
 
     
@@ -1350,14 +1408,17 @@ const animate = function () {
 
   // Animate Fireflies
   if (fireflies) {
-     // Visibility based on Night Mode (inverse of Day Factor)
+     // Visibility based on Night Mode (only active in state 2 = Night)
      // Also hide if underwater!
      const isUnderwater = camera.position.length() < (PLANET_RADIUS - 0.2);
-     let targetOpacity = (1.0 - currentDayFactor);
+     
+     // Fade in only at night
+     let targetOpacity = (timeOfDay === 2) ? 1.0 : 0.0;
      
      if (isUnderwater) targetOpacity = 0.0; // Hide underwater
      
-     fireflies.material.uniforms.globalOpacity.value = targetOpacity;
+     // Smooth transition opacity
+     fireflies.material.uniforms.globalOpacity.value += (targetOpacity - fireflies.material.uniforms.globalOpacity.value) * delta * 2.0;
      fireflies.material.uniforms.time.value = elapsedTime / 1000;
      
      if (targetOpacity > 0.01) {
