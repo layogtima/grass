@@ -51941,11 +51941,15 @@
 	  meadow: { audio: null, gainNode: null },
 	  space: { audio: null, gainNode: null },
 	  walking: { audio: null, gainNode: null },
-	  sculpting: { audio: null, gainNode: null }
+	  sculpting: { audio: null, gainNode: null },
+	  night: { audio: null, gainNode: null },
+	  underwater: { audio: null, gainNode: null }
 	};
 
 	// Audio settings
 	const MEADOW_MAX_VOLUME = 0.5;
+	const NIGHT_MAX_VOLUME = 0.5;
+	const UNDERWATER_MAX_VOLUME = 0.7;
 	const SPACE_MAX_VOLUME = 0.6;
 	const WALKING_VOLUME = 0.4;
 	const SCULPTING_VOLUME = 0.5;
@@ -52014,12 +52018,32 @@
 	    audioSources.sculpting.gainNode.gain.value = 0;
 	    sculptingSource.connect(audioSources.sculpting.gainNode);
 	    audioSources.sculpting.gainNode.connect(audioContext.destination);
+
+	    // Night ambient
+	    audioSources.night.audio = new Audio('assets/sounds/night.mp3');
+	    audioSources.night.audio.loop = true;
+	    const nightSource = audioContext.createMediaElementSource(audioSources.night.audio);
+	    audioSources.night.gainNode = audioContext.createGain();
+	    audioSources.night.gainNode.gain.value = 0;
+	    nightSource.connect(audioSources.night.gainNode);
+	    audioSources.night.gainNode.connect(audioContext.destination);
+
+	    // Underwater ambient
+	    audioSources.underwater.audio = new Audio('assets/sounds/underwater.mp3');
+	    audioSources.underwater.audio.loop = true;
+	    const underwaterSource = audioContext.createMediaElementSource(audioSources.underwater.audio);
+	    audioSources.underwater.gainNode = audioContext.createGain();
+	    audioSources.underwater.gainNode.gain.value = 0;
+	    underwaterSource.connect(audioSources.underwater.gainNode);
+	    audioSources.underwater.gainNode.connect(audioContext.destination);
 	    
 	    // Start ambient sounds
 	    audioSources.meadow.audio.play().catch(() => {});
 	    audioSources.space.audio.play().catch(() => {});
 	    audioSources.walking.audio.play().catch(() => {});
 	    audioSources.sculpting.audio.play().catch(() => {});
+	    audioSources.night.audio.play().catch(() => {});
+	    audioSources.underwater.audio.play().catch(() => {});
 	    
 	    audioInitialized = true;
 	    console.log('🎵 Audio system initialized!');
@@ -52030,7 +52054,7 @@
 
 	let lastAtmosphereT = 0;
 
-	function updateAmbientAudio(atmosphereT) {
+	function updateAmbientAudio(atmosphereT, currentDayFactor, isUnderwater) {
 	  if (!audioInitialized) return;
 	  lastAtmosphereT = atmosphereT;
 	  
@@ -52038,10 +52062,36 @@
 	  const duckingFactor = isPointerLocked ? 1.0 : 0.4;
 	  const masterVolume = settings.isMuted ? 0 : duckingFactor;
 	  
-	  // Crossfade between meadow and space based on altitude
+	  // 1. Calculate base environmental volumes
 	  // atmosphereT: 0 = on ground, 1 = in space
-	  let meadowVolume = MEADOW_MAX_VOLUME * (1 - atmosphereT) * settings.ambientVolume * masterVolume;
-	  let spaceVolume = SPACE_MAX_VOLUME * atmosphereT * settings.ambientVolume * masterVolume;
+	  // currentDayFactor: 1 = Day, 0 = Night
+	  
+	  // Surface mix: Blend between Meadow (Day) and Night (Night)
+	  const surfaceMix = 1.0 - atmosphereT;
+	  
+	  let meadowBase = surfaceMix * currentDayFactor;
+	  let nightBase = surfaceMix * (1.0 - currentDayFactor);
+	  let spaceBase = atmosphereT; // Space takes over as we go up
+	  let underwaterBase = 0.0;
+	  
+	  // 2. Apply Underwater "Smothering"
+	  // If underwater, ramp UP underwater sound and ramp DOWN everything else
+	  if (isUnderwater) {
+	     underwaterBase = 1.0;
+	     
+	     // Smother factor - how much to suppress other sounds
+	     const smotherFactor = 0.1; // Reduce others to 10%
+	     meadowBase *= smotherFactor;
+	     nightBase *= smotherFactor;
+	     spaceBase *= smotherFactor;
+	  }
+	  
+	  // 3. Apply Max Volumes & Settings
+	  let meadowVolume = meadowBase * MEADOW_MAX_VOLUME * settings.ambientVolume * masterVolume;
+	  let nightVolume = nightBase * NIGHT_MAX_VOLUME * settings.ambientVolume * masterVolume;
+	  let spaceVolume = spaceBase * SPACE_MAX_VOLUME * settings.ambientVolume * masterVolume;
+	  let underwaterVolume = underwaterBase * UNDERWATER_MAX_VOLUME * settings.ambientVolume * masterVolume;
+
 	  
 	  // MOONFALL AUDIO OVERRIDE 🌑
 	  // If moonfall is active, force Space volume UP and Meadow DOWN regardless of altitude
@@ -52053,11 +52103,14 @@
 	     // Override volumes
 	     // STAMP OUT MEADOW completely by mid-progress
 	     meadowVolume = Math.max(0, meadowVolume * (1.0 - ease * 5.0)); 
+	     nightVolume = Math.max(0, nightVolume * (1.0 - ease * 5.0)); // Also kill night sound
 	     spaceVolume = Math.max(spaceVolume, SPACE_MAX_VOLUME * ease * 2.0);
 	  }
 	  
 	  audioSources.meadow.gainNode.gain.value = meadowVolume;
+	  audioSources.night.gainNode.gain.value = nightVolume;
 	  audioSources.space.gainNode.gain.value = spaceVolume;
+	  audioSources.underwater.gainNode.gain.value = underwaterVolume;
 	}
 
 	function updateWalkingAudio(walking, onGround) {
@@ -52760,7 +52813,9 @@
 	    atmosphereMaterial.uniforms.viewVector.value.copy(camera.position);
 	    
 	    // 🎵 Update ambient audio crossfade
-	    updateAmbientAudio(atmosphereT);
+	    const seaLevel = PLANET_RADIUS - 0.2; // Match the water mesh level approx
+	    const isUnderwater = currentRadius < seaLevel;
+	    updateAmbientAudio(atmosphereT, currentDayFactor, isUnderwater);
 	    
 	    // 🎵 Update walking audio (only when moving AND on ground)
 	    const isMoving = moveForward || moveBackward || moveLeft || moveRight;
