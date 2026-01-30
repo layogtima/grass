@@ -91,7 +91,7 @@ function getSphericalTerrainHeight(theta, phi) {
 
 const scene = new THREE.Scene();
 // Camera Config - Increase Far Clip for Distant Moon!
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000); 
+const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 20000); 
 
 // Parameters
 const BLADE_COUNT = 80000;
@@ -123,11 +123,11 @@ let moveRight = false;
 let canJump = false;
 let verticalVelocity = 0;
 
-const PLAYER_HEIGHT = 1.0;
-const MOVE_SPEED = 5.0;
-const JUMP_VELOCITY = 8.0;
+const PLAYER_HEIGHT = 1.8;
+const MOVE_SPEED = 2.25;
+const JUMP_VELOCITY = 6;
 let GRAVITY = 2.5; // Changed to let for Moonfall
-const MOUSE_SENSITIVITY = 0.002;
+const MOUSE_SENSITIVITY = 0.001;
 
 
 let isPointerLocked = false;
@@ -748,10 +748,10 @@ function startMoonfall() {
 
 let groundMesh = null;
 let grassMesh = null;
-let brushRadius = 0.15; // Halved! Angular radius in radians
-const BRUSH_MIN = 0.05;
-const BRUSH_MAX = 0.4;
-const SCULPT_STRENGTH = 0.2; // Slightly gentler
+let brushRadius = 0.05; // Halved! Angular radius in radians
+const BRUSH_MIN = 0.01;
+const BRUSH_MAX = 0.3;
+const SCULPT_STRENGTH = 0.1; // Slightly gentler
 const raycaster = new THREE.Raycaster();
 let isMouseDown = false;
 let sculptMode = 0;
@@ -950,11 +950,11 @@ const animate = function () {
     }
     
     // Auto-Trigger Moonfall at 10s
-    if (!hasAutoTriggeredMoonfall && !isMoonfallActive && elapsedTime > 10000) {
-        console.log("🌑 Auto-triggering Moonfall at 10s!");
-        hasAutoTriggeredMoonfall = true;
-        startMoonfall();
-    }
+    //cif (!hasAutoTriggeredMoonfall && !isMoonfallActive && elapsedTime > 10000) {
+    //    console.log("🌑 Auto-triggering Moonfall at 10s!");
+    //    hasAutoTriggeredMoonfall = true;
+    //    startMoonfall();
+    // }
     // [Fix] Smoothly interpolate up vector to prevent jitter
     const targetUp = camera.position.clone().normalize();
     playerUp.lerp(targetUp, 0.1).normalize();

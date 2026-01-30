@@ -51752,7 +51752,7 @@
 
 	const scene = new Scene();
 	// Camera Config - Increase Far Clip for Distant Moon!
-	const camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000); 
+	const camera = new PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 20000); 
 
 	// Parameters
 	const BLADE_COUNT = 80000;
@@ -51784,11 +51784,11 @@
 	let canJump = false;
 	let verticalVelocity = 0;
 
-	const PLAYER_HEIGHT = 1.0;
-	const MOVE_SPEED = 5.0;
-	const JUMP_VELOCITY = 8.0;
+	const PLAYER_HEIGHT = 1.8;
+	const MOVE_SPEED = 2.25;
+	const JUMP_VELOCITY = 6;
 	let GRAVITY = 2.5; // Changed to let for Moonfall
-	const MOUSE_SENSITIVITY = 0.002;
+	const MOUSE_SENSITIVITY = 0.001;
 
 
 	let isPointerLocked = false;
@@ -52363,7 +52363,6 @@
 	// MOONFALL STATE
 	// MOONFALL STATE
 	let isMoonfallActive = false;
-	let hasAutoTriggeredMoonfall = false;
 	let moonfallStartTime = 0;
 	const MOONFALL_DURATION = 50000; // 50 seconds
 	let initialMoonPos = new Vector3();
@@ -52402,10 +52401,10 @@
 
 	let groundMesh = null;
 	let grassMesh = null;
-	let brushRadius = 0.15; // Halved! Angular radius in radians
-	const BRUSH_MIN = 0.05;
-	const BRUSH_MAX = 0.4;
-	const SCULPT_STRENGTH = 0.2; // Slightly gentler
+	let brushRadius = 0.05; // Halved! Angular radius in radians
+	const BRUSH_MIN = 0.01;
+	const BRUSH_MAX = 0.3;
+	const SCULPT_STRENGTH = 0.1; // Slightly gentler
 	const raycaster = new Raycaster();
 	let isMouseDown = false;
 	let sculptMode = 0;
@@ -52604,11 +52603,11 @@
 	    }
 	    
 	    // Auto-Trigger Moonfall at 10s
-	    if (!hasAutoTriggeredMoonfall && !isMoonfallActive && elapsedTime > 10000) {
-	        console.log("🌑 Auto-triggering Moonfall at 10s!");
-	        hasAutoTriggeredMoonfall = true;
-	        startMoonfall();
-	    }
+	    //cif (!hasAutoTriggeredMoonfall && !isMoonfallActive && elapsedTime > 10000) {
+	    //    console.log("🌑 Auto-triggering Moonfall at 10s!");
+	    //    hasAutoTriggeredMoonfall = true;
+	    //    startMoonfall();
+	    // }
 	    // [Fix] Smoothly interpolate up vector to prevent jitter
 	    const targetUp = camera.position.clone().normalize();
 	    playerUp.lerp(targetUp, 0.1).normalize();
